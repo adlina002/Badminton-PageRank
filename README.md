@@ -5,7 +5,7 @@ Student ID: 22078426
 This repository contains the following files:
 | File Name                | Description                                                                                                           |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| Webscraper.py            | File used to webscrape datasets from the website [https://badmintonranks.com](https://badmintonranks.com)              |
+| Webscraper.ipynb            | File used to webscrape datasets from the website [https://badmintonranks.com](https://badmintonranks.com)              |
 | Split.rmd                | Used to split the RAW dataset scraped by discipline, match_frequency, and train-test dataset                           |
 | PR.rmd                   | Functions used to generate ranking with PageRank algorithm (using the dataset already split)                            |
 | ELO.rmd                  | Function used to generate ranking with ELO rating system (using the dataset already split)                              |
