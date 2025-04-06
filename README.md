@@ -5,6 +5,7 @@ Student ID: 22078426
 This repository contains the following files:
 | File Name                | Description                                                                                                           |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| RAW.csv      | Full compilation of webscraped dataset  |
 | Webscraper.ipynb            | File used to webscrape datasets from the website [https://badmintonranks.com](https://badmintonranks.com)              |
 | Split.rmd                | Used to split the RAW dataset scraped by discipline, match_frequency, and train-test dataset                           |
 | PR.rmd                   | Functions used to generate ranking with PageRank algorithm (using the dataset already split)                            |
@@ -22,7 +23,7 @@ To generate the final Predictive Accuracy for each model by discipline, please r
 Otherwise, the following pre-generated files are included.
 | File Name | Description                             |
 |-----------|-----------------------------------------|
-| RAW6      | Full compilation of webscraped dataset  |
+| PR1_MS.csv      | Full run of PR1 on Mens Singles discipline |
 
 
 **Project Abstract (300 words)**
