@@ -1,7 +1,5 @@
 ---
-title: "brier score"
-author: "Nurul Adlina"
-date: "2025-04-22"
+title: "Brier score"
 output: html_document
 ---
 ```{r setup}
