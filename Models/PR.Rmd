@@ -13,29 +13,7 @@ WD<- read.csv("TOP_WD.csv")
 XD<- read.csv("TOP_XD.csv")
 latesttour<- read.csv("tourID.csv",header = FALSE) 
 latesttourID<- latesttour$V1
-```
-to do:
-
-      - decide nak letak graph ke tak....
-      - comment/ double check PR2.2-3.3
-      - as of 13/4 [MAIN DUMP JE THE EQUATIONS...... TAK TUKAR PUN ON ANYTHING ELSE LAGI....]
-  # Plot Directed Network Graph
-  library(igraph)
-  g <- graph_from_adjacency_matrix(A, mode = "directed", weighted = TRUE)
-  plot(g,
-       edge.width = E(g)$weight,
-       main = "Player Network",
-       vertex.size = 10,
-       vertex.label.cex = 0.5,
-       vertex.color = "skyblue",
-       vertex.frame.color = "skyblue",
-       vertex.shape = "circle",
-       edge.width = 2,
-       edge.color = "lightgrey",
-       edge.arrow.size = 2,
-       edge.arrow.width = 1.5)
-  
-      
+```     
 ```{r PR1}
 PR1 <- function(match_history, alpha = 0.85, epsilon = 1e-6, max_iter = 10000) {
 # Extract unique Player IDs
