@@ -1,6 +1,5 @@
 ---
 title: "PageRank Models"
-author: "Student id: 22078426"
 output: html_document
 ---
 
