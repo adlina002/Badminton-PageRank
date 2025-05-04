@@ -1,0 +1,347 @@
+---
+title: "brier score"
+author: "Nurul Adlina"
+date: "2025-04-22"
+output: html_document
+---
+```{r setup}
+MS_TEST<- read.csv("TOP_MS_TEST.csv")
+WS_TEST<- read.csv("TOP_WS_TEST.csv")
+MD_TEST<- read.csv("TOP_MD_TEST.csv")
+WD_TEST<- read.csv("TOP_WD_TEST.csv")
+XD_TEST<- read.csv("TOP_XD_TEST.csv")
+```
+```{r}
+brier <- function(train_PR_df1, test_df1, pr_column = "PageRank") {
+# Check that both Winner and Loser are in the Train Dataset
+  if (! "Player" %in% names(train_PR_df1)) {
+    train_PR_df1$Player <- train_PR_df1$PlayerID
+  }
+  test_filtered <- test_df1[
+    test_df1$Winner %in% train_PR_df1$Player &
+    test_df1$Loser  %in% train_PR_df1$Player,
+  ]
+  test_filtered$PR_winner <- train_PR_df1[[pr_column]][
+    match(test_filtered$Winner, train_PR_df1$Player)
+  ]
+  test_filtered$PR_loser <- train_PR_df1[[pr_column]][
+    match(test_filtered$Loser,  train_PR_df1$Player)
+  ]
+  
+# Build a predicted probability that the Winner wins
+  test_filtered$p_hat   <- test_filtered$PR_winner /
+                           (test_filtered$PR_winner + test_filtered$PR_loser)
+  # actual outcome is always 1 (because these are rows where Winner did win)
+  test_filtered$outcome <- 1
+  
+# Compute the Brier score = mean((p_hat – outcome)^2)
+  valid       <- !is.na(test_filtered$p_hat)
+  BrierScore  <- mean((test_filtered$p_hat[valid] - test_filtered$outcome[valid])^2)
+  MatchesUsed <- sum(valid)
+  
+# Return results
+  return(list(
+    BrierScore  = BrierScore,
+    MatchesUsed = MatchesUsed
+  ))
+}
+```
+# Run all
+```{r all others #BRIER}
+# MS
+B_PR1_MS <- brier(PR1_MS, MS_TEST)$BrierScore
+B_PR2.1_MS <- brier(PR2.1_MS, MS_TEST)$BrierScore
+B_PR2.3_MS <- brier(PR2.3_MS, MS_TEST)$BrierScore
+B_PR3.1_MS <- brier(PR3.1_MS, MS_TEST)$BrierScore
+B_PR4_MS <- brier(PR4_MS, MS_TEST)$BrierScore
+# WS
+B_PR1_WS <- brier(PR1_WS, WS_TEST)$BrierScore
+B_PR2.1_WS <- brier(PR2.1_WS, WS_TEST)$BrierScore
+B_PR2.3_WS <- brier(PR2.3_WS, WS_TEST)$BrierScore
+B_PR3.1_WS <- brier(PR3.1_WS, WS_TEST)$BrierScore
+B_PR4_WS <- brier(PR4_WS, WS_TEST)$BrierScore
+# MD
+B_PR1_MD <- brier(PR1_MD, MD_TEST)$BrierScore
+B_PR2.1_MD <- brier(PR2.1_MD, MD_TEST)$BrierScore
+B_PR2.3_MD <- brier(PR2.3_MD, MD_TEST)$BrierScore
+B_PR3.1_MD <- brier(PR3.1_MD, MD_TEST)$BrierScore
+B_PR4_MD <- brier(PR4_MD, MD_TEST)$BrierScore
+# WD
+B_PR1_WD <- brier(PR1_WD, WD_TEST)$BrierScore
+B_PR2.1_WD <- brier(PR2.1_WD, WD_TEST)$BrierScore
+B_PR2.3_WD <- brier(PR2.3_WD, WD_TEST)$BrierScore
+B_PR3.1_WD <- brier(PR3.1_WD, WD_TEST)$BrierScore
+B_PR4_WD <- brier(PR4_WD, WD_TEST)$BrierScore
+# XD
+B_PR1_XD <- brier(PR1_XD, XD_TEST)$BrierScore
+B_PR2.1_XD <- brier(PR2.1_XD, XD_TEST)$BrierScore
+B_PR2.3_XD <- brier(PR2.3_XD, XD_TEST)$BrierScore
+B_PR3.1_XD <- brier(PR3.1_XD, XD_TEST)$BrierScore
+B_PR4_XD <- brier(PR4_XD, XD_TEST)$BrierScore
+```
+```{r full run PR2.2 #BRIER}
+#p= 0.01,0.05,0.1,0.2,0.3,0.4,0.5
+# MS
+B_PR2.2_MS0.01 <- brier(PR2.2_MS0.01, MS_TEST)$BrierScore
+B_PR2.2_MS0.05 <- brier(PR2.2_MS0.05, MS_TEST)$BrierScore
+B_PR2.2_MS0.1 <- brier(PR2.2_MS0.1, MS_TEST)$BrierScore
+B_PR2.2_MS0.2 <- brier(PR2.2_MS0.2, MS_TEST)$BrierScore
+B_PR2.2_MS0.3 <- brier(PR2.2_MS0.3, MS_TEST)$BrierScore
+B_PR2.2_MS0.4 <- brier(PR2.2_MS0.4, MS_TEST)$BrierScore
+B_PR2.2_MS0.5 <- brier(PR2.2_MS0.5, MS_TEST)$BrierScore
+# WS
+B_PR2.2_WS0.01 <- brier(PR2.2_WS0.01, WS_TEST)$BrierScore
+B_PR2.2_WS0.05 <- brier(PR2.2_WS0.05, WS_TEST)$BrierScore
+B_PR2.2_WS0.1 <- brier(PR2.2_WS0.1, WS_TEST)$BrierScore
+B_PR2.2_WS0.2 <- brier(PR2.2_WS0.2, WS_TEST)$BrierScore
+B_PR2.2_WS0.3 <- brier(PR2.2_WS0.3, WS_TEST)$BrierScore
+B_PR2.2_WS0.4 <- brier(PR2.2_WS0.4, WS_TEST)$BrierScore
+B_PR2.2_WS0.5 <- brier(PR2.2_WS0.5, WS_TEST)$BrierScore
+# MD
+B_PR2.2_MD0.01 <- brier(PR2.2_MD0.01, MD_TEST)$BrierScore
+B_PR2.2_MD0.05 <- brier(PR2.2_MD0.05, MD_TEST)$BrierScore
+B_PR2.2_MD0.1 <- brier(PR2.2_MD0.1, MD_TEST)$BrierScore
+B_PR2.2_MD0.2 <- brier(PR2.2_MD0.2, MD_TEST)$BrierScore
+B_PR2.2_MD0.3 <- brier(PR2.2_MD0.3, MD_TEST)$BrierScore
+B_PR2.2_MD0.4 <- brier(PR2.2_MD0.4, MD_TEST)$BrierScore
+B_PR2.2_MD0.5 <- brier(PR2.2_MD0.5, MD_TEST)$BrierScore
+# WD
+B_PR2.2_WD0.01 <- brier(PR2.2_WD0.01, WD_TEST)$BrierScore
+B_PR2.2_WD0.05 <- brier(PR2.2_WD0.05, WD_TEST)$BrierScore
+B_PR2.2_WD0.1 <- brier(PR2.2_WD0.1, WD_TEST)$BrierScore
+B_PR2.2_WD0.2 <- brier(PR2.2_WD0.2, WD_TEST)$BrierScore
+B_PR2.2_WD0.3 <- brier(PR2.2_WD0.3, WD_TEST)$BrierScore
+B_PR2.2_WD0.4 <- brier(PR2.2_WD0.4, WD_TEST)$BrierScore
+B_PR2.2_WD0.5 <- brier(PR2.2_WD0.5, WD_TEST)$BrierScore
+# XD
+B_PR2.2_XD0.01 <- brier(PR2.2_XD0.01, XD_TEST)$BrierScore
+B_PR2.2_XD0.05 <- brier(PR2.2_XD0.05, XD_TEST)$BrierScore
+B_PR2.2_XD0.1 <- brier(PR2.2_XD0.1, XD_TEST)$BrierScore
+B_PR2.2_XD0.2 <- brier(PR2.2_XD0.2, XD_TEST)$BrierScore
+B_PR2.2_XD0.3 <- brier(PR2.2_XD0.3, XD_TEST)$BrierScore
+B_PR2.2_XD0.4 <- brier(PR2.2_XD0.4, XD_TEST)$BrierScore
+B_PR2.2_XD0.5 <- brier(PR2.2_XD0.5, XD_TEST)$BrierScore
+
+```
+```{r full run PR3.2 #BRIER}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+B_PR3.2_MS0.5 <- brier(PR3.2_MS0.5, MS_TEST)$BrierScore
+B_PR3.2_MS1 <- brier(PR3.2_MS1, MS_TEST)$BrierScore
+B_PR3.2_MS1.5 <- brier(PR3.2_MS1.5, MS_TEST)$BrierScore
+B_PR3.2_MS2 <- brier(PR3.2_MS2, MS_TEST)$BrierScore
+B_PR3.2_MS2.5 <- brier(PR3.2_MS2.5, MS_TEST)$BrierScore
+B_PR3.2_MS3 <- brier(PR3.2_MS3, MS_TEST)$BrierScore
+B_PR3.2_MS3.5 <- brier(PR3.2_MS3.5, MS_TEST)$BrierScore
+B_PR3.2_MS4 <- brier(PR3.2_MS4, MS_TEST)$BrierScore
+B_PR3.2_MS4.5 <- brier(PR3.2_MS4.5, MS_TEST)$BrierScore
+B_PR3.2_MS5 <- brier(PR3.2_MS5, MS_TEST)$BrierScore
+# WS
+B_PR3.2_WS0.5 <- brier(PR3.2_WS0.5, WS_TEST)$BrierScore
+B_PR3.2_WS1 <- brier(PR3.2_WS1, WS_TEST)$BrierScore
+B_PR3.2_WS1.5 <- brier(PR3.2_WS1.5, WS_TEST)$BrierScore
+B_PR3.2_WS2 <- brier(PR3.2_WS2, WS_TEST)$BrierScore
+B_PR3.2_WS2.5 <- brier(PR3.2_WS2.5, WS_TEST)$BrierScore
+B_PR3.2_WS3 <- brier(PR3.2_WS3, WS_TEST)$BrierScore
+B_PR3.2_WS3.5 <- brier(PR3.2_WS3.5, WS_TEST)$BrierScore
+B_PR3.2_WS4 <- brier(PR3.2_WS4, WS_TEST)$BrierScore
+B_PR3.2_WS4.5 <- brier(PR3.2_WS4.5, WS_TEST)$BrierScore
+B_PR3.2_WS5 <- brier(PR3.2_WS5, WS_TEST)$BrierScore
+# MD
+B_PR3.2_MD0.5 <- brier(PR3.2_MD0.5, MD_TEST)$BrierScore
+B_PR3.2_MD1 <- brier(PR3.2_MD1, MD_TEST)$BrierScore
+B_PR3.2_MD1.5 <- brier(PR3.2_MD1.5, MD_TEST)$BrierScore
+B_PR3.2_MD2 <- brier(PR3.2_MD2, MD_TEST)$BrierScore
+B_PR3.2_MD2.5 <- brier(PR3.2_MD2.5, MD_TEST)$BrierScore
+B_PR3.2_MD3 <- brier(PR3.2_MD3, MD_TEST)$BrierScore
+B_PR3.2_MD3.5 <- brier(PR3.2_MD3.5, MD_TEST)$BrierScore
+B_PR3.2_MD4 <- brier(PR3.2_MD4, MD_TEST)$BrierScore
+B_PR3.2_MD4.5 <- brier(PR3.2_MD4.5, MD_TEST)$BrierScore
+B_PR3.2_MD5 <- brier(PR3.2_MD5, MD_TEST)$BrierScore
+# WD
+B_PR3.2_WD0.5 <- brier(PR3.2_WD0.5, WD_TEST)$BrierScore
+B_PR3.2_WD1 <- brier(PR3.2_WD1, WD_TEST)$BrierScore
+B_PR3.2_WD1.5 <- brier(PR3.2_WD1.5, WD_TEST)$BrierScore
+B_PR3.2_WD2 <- brier(PR3.2_WD2, WD_TEST)$BrierScore
+B_PR3.2_WD2.5 <- brier(PR3.2_WD2.5, WD_TEST)$BrierScore
+B_PR3.2_WD3 <- brier(PR3.2_WD3, WD_TEST)$BrierScore
+B_PR3.2_WD3.5 <- brier(PR3.2_WD3.5, WD_TEST)$BrierScore
+B_PR3.2_WD4 <- brier(PR3.2_WD4, WD_TEST)$BrierScore
+B_PR3.2_WD4.5 <- brier(PR3.2_WD4.5, WD_TEST)$BrierScore
+B_PR3.2_WD5 <- brier(PR3.2_WD5, WD_TEST)$BrierScore
+# XD
+B_PR3.2_XD0.5 <- brier(PR3.2_XD0.5, XD_TEST)$BrierScore
+B_PR3.2_XD1 <- brier(PR3.2_XD1, XD_TEST)$BrierScore
+B_PR3.2_XD1.5 <- brier(PR3.2_XD1.5, XD_TEST)$BrierScore
+B_PR3.2_XD2 <- brier(PR3.2_XD2, XD_TEST)$BrierScore
+B_PR3.2_XD2.5 <- brier(PR3.2_XD2.5, XD_TEST)$BrierScore
+B_PR3.2_XD3 <- brier(PR3.2_XD3, XD_TEST)$BrierScore
+B_PR3.2_XD3.5 <- brier(PR3.2_XD3.5, XD_TEST)$BrierScore
+B_PR3.2_XD4 <- brier(PR3.2_XD4, XD_TEST)$BrierScore
+B_PR3.2_XD4.5 <- brier(PR3.2_XD4.5, XD_TEST)$BrierScore
+B_PR3.2_XD5 <- brier(PR3.2_XD5, XD_TEST)$BrierScore
+```
+```{r full run PR3.3 #BRIER}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+B_PR3.3_MS0.5 <- brier(PR3.3_MS0.5, MS_TEST)$BrierScore
+B_PR3.3_MS1 <- brier(PR3.3_MS1, MS_TEST)$BrierScore
+B_PR3.3_MS1.5 <- brier(PR3.3_MS1.5, MS_TEST)$BrierScore
+B_PR3.3_MS2 <- brier(PR3.3_MS2, MS_TEST)$BrierScore
+B_PR3.3_MS2.5 <- brier(PR3.3_MS2.5, MS_TEST)$BrierScore
+B_PR3.3_MS3 <- brier(PR3.3_MS3, MS_TEST)$BrierScore
+B_PR3.3_MS3.5 <- brier(PR3.3_MS3.5, MS_TEST)$BrierScore
+B_PR3.3_MS4 <- brier(PR3.3_MS4, MS_TEST)$BrierScore
+B_PR3.3_MS4.5 <- brier(PR3.3_MS4.5, MS_TEST)$BrierScore
+B_PR3.3_MS5 <- brier(PR3.3_MS5, MS_TEST)$BrierScore
+# WS
+B_PR3.3_WS0.5 <- brier(PR3.3_WS0.5, WS_TEST)$BrierScore
+B_PR3.3_WS1 <- brier(PR3.3_WS1, WS_TEST)$BrierScore
+B_PR3.3_WS1.5 <- brier(PR3.3_WS1.5, WS_TEST)$BrierScore
+B_PR3.3_WS2 <- brier(PR3.3_WS2, WS_TEST)$BrierScore
+B_PR3.3_WS2.5 <- brier(PR3.3_WS2.5, WS_TEST)$BrierScore
+B_PR3.3_WS3 <- brier(PR3.3_WS3, WS_TEST)$BrierScore
+B_PR3.3_WS3.5 <- brier(PR3.3_WS3.5, WS_TEST)$BrierScore
+B_PR3.3_WS4 <- brier(PR3.3_WS4, WS_TEST)$BrierScore
+B_PR3.3_WS4.5 <- brier(PR3.3_WS4.5, WS_TEST)$BrierScore
+B_PR3.3_WS5 <- brier(PR3.3_WS5, WS_TEST)$BrierScore
+# MD
+B_PR3.3_MD0.5 <- brier(PR3.3_MD0.5, MD_TEST)$BrierScore
+B_PR3.3_MD1 <- brier(PR3.3_MD1, MD_TEST)$BrierScore
+B_PR3.3_MD1.5 <- brier(PR3.3_MD1.5, MD_TEST)$BrierScore
+B_PR3.3_MD2 <- brier(PR3.3_MD2, MD_TEST)$BrierScore
+B_PR3.3_MD2.5 <- brier(PR3.3_MD2.5, MD_TEST)$BrierScore
+B_PR3.3_MD3 <- brier(PR3.3_MD3, MD_TEST)$BrierScore
+B_PR3.3_MD3.5 <- brier(PR3.3_MD3.5, MD_TEST)$BrierScore
+B_PR3.3_MD4 <- brier(PR3.3_MD4, MD_TEST)$BrierScore
+B_PR3.3_MD4.5 <- brier(PR3.3_MD4.5, MD_TEST)$BrierScore
+B_PR3.3_MD5 <- brier(PR3.3_MD5, MD_TEST)$BrierScore
+# WD
+B_PR3.3_WD0.5 <- brier(PR3.3_WD0.5, WD_TEST)$BrierScore
+B_PR3.3_WD1 <- brier(PR3.3_WD1, WD_TEST)$BrierScore
+B_PR3.3_WD1.5 <- brier(PR3.3_WD1.5, WD_TEST)$BrierScore
+B_PR3.3_WD2 <- brier(PR3.3_WD2, WD_TEST)$BrierScore
+B_PR3.3_WD2.5 <- brier(PR3.3_WD2.5, WD_TEST)$BrierScore
+B_PR3.3_WD3 <- brier(PR3.3_WD3, WD_TEST)$BrierScore
+B_PR3.3_WD3.5 <- brier(PR3.3_WD3.5, WD_TEST)$BrierScore
+B_PR3.3_WD4 <- brier(PR3.3_WD4, WD_TEST)$BrierScore
+B_PR3.3_WD4.5 <- brier(PR3.3_WD4.5, WD_TEST)$BrierScore
+B_PR3.3_WD5 <- brier(PR3.3_WD5, WD_TEST)$BrierScore
+# XD
+B_PR3.3_XD0.5 <- brier(PR3.3_XD0.5, XD_TEST)$BrierScore
+B_PR3.3_XD1 <- brier(PR3.3_XD1, XD_TEST)$BrierScore
+B_PR3.3_XD1.5 <- brier(PR3.3_XD1.5, XD_TEST)$BrierScore
+B_PR3.3_XD2 <- brier(PR3.3_XD2, XD_TEST)$BrierScore
+B_PR3.3_XD2.5 <- brier(PR3.3_XD2.5, XD_TEST)$BrierScore
+B_PR3.3_XD3 <- brier(PR3.3_XD3, XD_TEST)$BrierScore
+B_PR3.3_XD3.5 <- brier(PR3.3_XD3.5, XD_TEST)$BrierScore
+B_PR3.3_XD4 <- brier(PR3.3_XD4, XD_TEST)$BrierScore
+B_PR3.3_XD4.5 <- brier(PR3.3_XD4.5, XD_TEST)$BrierScore
+B_PR3.3_XD5 <- brier(PR3.3_XD5, XD_TEST)$BrierScore
+```
+```{r full run PR5 #BRIER}
+#t= 1.5,2,2.5,3,3.5,4,4.5,5
+# MS, p=0.5
+B_PR5_MS1.5 <- brier(PR5_MS1.5, MS_TEST)$BrierScore
+B_PR5_MS2 <- brier(PR5_MS2, MS_TEST)$BrierScore
+B_PR5_MS2.5 <- brier(PR5_MS2.5, MS_TEST)$BrierScore
+B_PR5_MS3 <- brier(PR5_MS3, MS_TEST)$BrierScore
+B_PR5_MS3.5 <- brier(PR5_MS3.5, MS_TEST)$BrierScore
+B_PR5_MS4 <- brier(PR5_MS4, MS_TEST)$BrierScore
+B_PR5_MS4.5 <- brier(PR5_MS4.5, MS_TEST)$BrierScore
+B_PR5_MS5 <- brier(PR5_MS5, MS_TEST)$BrierScore
+# WS, p=0.5
+B_PR5_WS1.5 <- brier(PR5_WS1.5, WS_TEST)$BrierScore
+B_PR5_WS2 <- brier(PR5_WS2, WS_TEST)$BrierScore
+B_PR5_WS2.5 <- brier(PR5_WS2.5, WS_TEST)$BrierScore
+B_PR5_WS3 <- brier(PR5_WS3, WS_TEST)$BrierScore
+B_PR5_WS3.5 <- brier(PR5_WS3.5, WS_TEST)$BrierScore
+B_PR5_WS4 <- brier(PR5_WS4, WS_TEST)$BrierScore
+B_PR5_WS4.5 <- brier(PR5_WS4.5, WS_TEST)$BrierScore
+B_PR5_WS5 <- brier(PR5_WS5, WS_TEST)$BrierScore
+# MD, p=0.5
+B_PR5_MD1.5 <- brier(PR5_MD1.5, MD_TEST)$BrierScore
+B_PR5_MD2 <- brier(PR5_MD2, MD_TEST)$BrierScore
+B_PR5_MD2.5 <- brier(PR5_MD2.5, MD_TEST)$BrierScore
+B_PR5_MD3 <- brier(PR5_MD3, MD_TEST)$BrierScore
+B_PR5_MD3.5 <- brier(PR5_MD3.5, MD_TEST)$BrierScore
+B_PR5_MD4 <- brier(PR5_MD4, MD_TEST)$BrierScore
+B_PR5_MD4.5 <- brier(PR5_MD4.5, MD_TEST)$BrierScore
+B_PR5_MD5 <- brier(PR5_MD5, MD_TEST)$BrierScore
+# WD, p=3
+B_PR5_WD1.5 <- brier(PR5_WD1.5, WD_TEST)$BrierScore
+B_PR5_WD2 <- brier(PR5_WD2, WD_TEST)$BrierScore
+B_PR5_WD2.5 <- brier(PR5_WD2.5, WD_TEST)$BrierScore
+B_PR5_WD3 <- brier(PR5_WD3, WD_TEST)$BrierScore
+B_PR5_WD3.5 <- brier(PR5_WD3.5, WD_TEST)$BrierScore
+B_PR5_WD4 <- brier(PR5_WD4, WD_TEST)$BrierScore
+B_PR5_WD4.5 <- brier(PR5_WD4.5, WD_TEST)$BrierScore
+B_PR5_WD5 <- brier(PR5_WD5, WD_TEST)$BrierScore
+# XD, p=0.5
+B_PR5_XD1.5 <- brier(PR5_XD1.5, XD_TEST)$BrierScore
+B_PR5_XD2 <- brier(PR5_XD2, XD_TEST)$BrierScore
+B_PR5_XD2.5 <- brier(PR5_XD2.5, XD_TEST)$BrierScore
+B_PR5_XD3 <- brier(PR5_XD3, XD_TEST)$BrierScore
+B_PR5_XD3.5 <- brier(PR5_XD3.5, XD_TEST)$BrierScore
+B_PR5_XD4 <- brier(PR5_XD4, XD_TEST)$BrierScore
+B_PR5_XD4.5 <- brier(PR5_XD4.5, XD_TEST)$BrierScore
+B_PR5_XD5 <- brier(PR5_XD5, XD_TEST)$BrierScore
+```
+```{r reference #BRIER}
+B_BT_MS<- brier(BT_MS, MS_TEST, pr_column = "Strength")$BrierScore
+B_ELO_MS<- brier(ELO_MS, MS_TEST, pr_column = "Rating")$BrierScore
+
+B_BT_WS<- brier(BT_WS, WS_TEST, pr_column = "Strength")$BrierScore
+B_ELO_WS<- brier(ELO_WS, WS_TEST, pr_column = "Rating")$BrierScore
+
+B_BT_MD<- brier(BT_MD, MD_TEST, pr_column = "Strength")$BrierScore
+B_ELO_MD<- brier(ELO_MD, MD_TEST, pr_column = "Rating")$BrierScore
+
+B_BT_WD<- brier(BT_WD, WD_TEST, pr_column = "Strength")$BrierScore
+B_ELO_WD<- brier(ELO_WD, WD_TEST, pr_column = "Rating")$BrierScore
+
+B_BT_XD<- brier(BT_XD, XD_TEST, pr_column = "Strength")$BrierScore
+B_ELO_XD<- brier(ELO_XD, XD_TEST, pr_column = "Rating")$BrierScore
+```
+```{r save}
+# Brier Score
+# MS
+B_MS<- c(B_PR1_MS,B_PR2.1_MS,B_PR2.3_MS,B_PR3.1_MS,B_PR4_MS,B_PR2.2_MS0.01,
+B_PR2.2_MS0.05,B_PR2.2_MS0.1,B_PR2.2_MS0.2,B_PR2.2_MS0.3,B_PR2.2_MS0.4,
+B_PR2.2_MS0.5,B_PR3.2_MS0.5,B_PR3.2_MS1,B_PR3.2_MS1.5,B_PR3.2_MS2,
+B_PR3.2_MS2.5,B_PR3.2_MS3,B_PR3.3_MS0.5,B_PR3.3_MS1,B_PR3.3_MS1.5,
+B_PR3.3_MS2,B_PR3.3_MS2.5,B_PR3.3_MS3,B_PR5_MS1.5,B_PR5_MS2,B_PR5_MS2.5,
+B_PR5_MS3,B_PR5_MS3.5,B_PR5_MS4,B_PR5_MS4.5,B_PR5_MS5,B_BT_MS,B_ELO_MS)
+# WS
+B_WS<- c(B_PR1_WS,B_PR2.1_WS,B_PR2.3_WS,B_PR3.1_WS,B_PR4_WS,B_PR2.2_WS0.01,
+B_PR2.2_WS0.05,B_PR2.2_WS0.1,B_PR2.2_WS0.2,B_PR2.2_WS0.3,B_PR2.2_WS0.4,
+B_PR2.2_WS0.5,B_PR3.2_WS0.5,B_PR3.2_WS1,B_PR3.2_WS1.5,B_PR3.2_WS2,
+B_PR3.2_WS2.5,B_PR3.2_WS3,B_PR3.3_WS0.5,B_PR3.3_WS1,B_PR3.3_WS1.5,
+B_PR3.3_WS2,B_PR3.3_WS2.5,B_PR3.3_WS3,B_PR5_WS1.5,B_PR5_WS2,B_PR5_WS2.5,
+B_PR5_WS3,B_PR5_WS3.5,B_PR5_WS4,B_PR5_WS4.5,B_PR5_WS5,B_BT_WS,B_ELO_WS)
+# MD
+B_MD<- c(B_PR1_MD,B_PR2.1_MD,B_PR2.3_MD,B_PR3.1_MD,B_PR4_MD,B_PR2.2_MD0.01,
+B_PR2.2_MD0.05,B_PR2.2_MD0.1,B_PR2.2_MD0.2,B_PR2.2_MD0.3,B_PR2.2_MD0.4,
+B_PR2.2_MD0.5,B_PR3.2_MD0.5,B_PR3.2_MD1,B_PR3.2_MD1.5,B_PR3.2_MD2,
+B_PR3.2_MD2.5,B_PR3.2_MD3,B_PR3.3_MD0.5,B_PR3.3_MD1,B_PR3.3_MD1.5,
+B_PR3.3_MD2,B_PR3.3_MD2.5,B_PR3.3_MD3,B_PR5_MD1.5,B_PR5_MD2,B_PR5_MD2.5,
+B_PR5_MD3,B_PR5_MD3.5,B_PR5_MD4,B_PR5_MD4.5,B_PR5_MD5,B_BT_MD,B_ELO_MD)
+# WD
+B_WD<- c(B_PR1_WD,B_PR2.1_WD,B_PR2.3_WD,B_PR3.1_WD,B_PR4_WD,B_PR2.2_WD0.01,
+B_PR2.2_WD0.05,B_PR2.2_WD0.1,B_PR2.2_WD0.2,B_PR2.2_WD0.3,B_PR2.2_WD0.4,
+B_PR2.2_WD0.5,B_PR3.2_WD0.5,B_PR3.2_WD1,B_PR3.2_WD1.5,B_PR3.2_WD2,
+B_PR3.2_WD2.5,B_PR3.2_WD3,B_PR3.3_WD0.5,B_PR3.3_WD1,B_PR3.3_WD1.5,
+B_PR3.3_WD2,B_PR3.3_WD2.5,B_PR3.3_WD3,B_PR5_WD1.5,B_PR5_WD2,B_PR5_WD2.5,
+B_PR5_WD3,B_PR5_WD3.5,B_PR5_WD4,B_PR5_WD4.5,B_PR5_WD5,B_BT_WD,B_ELO_WD)
+# XD
+B_XD<- c(B_PR1_XD,B_PR2.1_XD,B_PR2.3_XD,B_PR3.1_XD,B_PR4_XD,B_PR2.2_XD0.01,
+B_PR2.2_XD0.05,B_PR2.2_XD0.1,B_PR2.2_XD0.2,B_PR2.2_XD0.3,B_PR2.2_XD0.4,
+B_PR2.2_XD0.5,B_PR3.2_XD0.5,B_PR3.2_XD1,B_PR3.2_XD1.5,B_PR3.2_XD2,
+B_PR3.2_XD2.5,B_PR3.2_XD3,B_PR3.3_XD0.5,B_PR3.3_XD1,B_PR3.3_XD1.5,
+B_PR3.3_XD2,B_PR3.3_XD2.5,B_PR3.3_XD3,B_PR5_XD1.5,B_PR5_XD2,B_PR5_XD2.5,
+B_PR5_XD3,B_PR5_XD3.5,B_PR5_XD4,B_PR5_XD4.5,B_PR5_XD5,B_BT_XD,B_ELO_XD)
+##########
+df_brier <- data.frame(Model = models,MS = B_MS,WS = B_WS,MD = B_MD,
+                         WD = B_WD,XD = B_XD,stringsAsFactors = FALSE)
+#write.xlsx(x = list("Brier Scores" = df_brier),"Brier_Scores.xlsx",overwrite = TRUE)
+```

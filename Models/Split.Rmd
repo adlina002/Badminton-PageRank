@@ -1,0 +1,158 @@
+---
+title: "Split"
+author: "Student id: 22078426"
+date: "2025-04-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+RAW<- read.csv("RAW.csv")
+MS <- subset(RAW, Type == "MS")
+WS <- subset(RAW, Type == "WS")
+MD <- subset(RAW, Type == "MD")
+WD <- subset(RAW, Type == "WD")
+XD <- subset(RAW, Type == "XD")
+```
+
+```{r Frequency Split}
+# MS (50)
+MS_players <- c(MS$Winner, MS$Loser)
+MS_freq <- table(MS_players)
+MS_freq_df <- as.data.frame(MS_freq)
+colnames(MS_freq_df) <- c("Player", "Frequency")
+MS_freq_df <- MS_freq_df %>%
+  arrange(desc(Frequency))
+MS_freq_df
+summary(MS_freq_df$Frequency)
+MS_freq_df_cut50<- MS_freq_df[MS_freq_df$Frequency > 50, ]
+n_distinct(MS_freq_df_cut50$Player)
+MS_ids50 <- MS_freq_df_cut50$Player 
+TOP_MS <- MS[MS$Winner %in% MS_ids50 & MS$Loser %in% MS_ids50, ]
+TOP_MS
+# WS (55)
+WS_players <- c(WS$Winner, WS$Loser)
+WS_freq <- table(WS_players)
+WS_freq_df <- as.data.frame(WS_freq)
+colnames(WS_freq_df) <- c("Player", "Frequency")
+WS_freq_df <- WS_freq_df %>%
+  arrange(desc(Frequency))
+WS_freq_df
+summary(WS_freq_df$Frequency)
+WS_freq_df_cut55<- WS_freq_df[WS_freq_df$Frequency > 55, ]
+n_distinct(WS_freq_df_cut55$Player)
+WS_ids55 <- WS_freq_df_cut55$Player 
+TOP_WS <- WS[WS$Winner %in% WS_ids55 & WS$Loser %in% WS_ids55, ]
+TOP_WS
+# MD (25)
+MD_players <- c(MD$Winner, MD$Loser)
+MD_freq <- table(MD_players)
+MD_freq_df <- as.data.frame(MD_freq)
+colnames(MD_freq_df) <- c("Player", "Frequency")
+MD_freq_df <- MD_freq_df %>%
+  arrange(desc(Frequency))
+MD_freq_df
+summary(MD_freq_df$Frequency)
+MD_freq_df_cut25<- MD_freq_df[MD_freq_df$Frequency > 25, ]
+n_distinct(MD_freq_df_cut25$Player)
+MD_ids25 <- MD_freq_df_cut25$Player 
+TOP_MD <- MD[MD$Winner %in% MD_ids25 & MD$Loser %in% MD_ids25, ]
+TOP_MD
+# WD (25)
+WD_players <- c(WD$Winner, WD$Loser)
+WD_freq <- table(WD_players)
+WD_freq_df <- as.data.frame(WD_freq)
+colnames(WD_freq_df) <- c("Player", "Frequency")
+WD_freq_df <- WD_freq_df %>%
+  arrange(desc(Frequency))
+WD_freq_df
+summary(WD_freq_df$Frequency)
+WD_freq_df_cut25<- WD_freq_df[WD_freq_df$Frequency > 25, ]
+n_distinct(WD_freq_df_cut25$Player)
+WD_ids25 <- WD_freq_df_cut25$Player 
+TOP_WD <- WD[WD$Winner %in% WD_ids25 & WD$Loser %in% WD_ids25, ]
+TOP_WD
+# XD (20)
+XD_players <- c(XD$Winner, XD$Loser)
+XD_freq <- table(XD_players)
+XD_freq_df <- as.data.frame(XD_freq)
+colnames(XD_freq_df) <- c("Player", "Frequency")
+XD_freq_df <- XD_freq_df %>%
+  arrange(desc(Frequency))
+XD_freq_df
+summary(XD_freq_df$Frequency)
+XD_freq_df_cut20<- XD_freq_df[XD_freq_df$Frequency > 20, ]
+n_distinct(XD_freq_df_cut20$Player)
+XD_ids20 <- XD_freq_df_cut20$Player 
+TOP_XD <- XD[XD$Winner %in% XD_ids20 & XD$Loser %in% XD_ids20, ]
+TOP_XD
+###### Save
+write.csv(TOP_MS, "TOP_MS.csv", row.names = FALSE, na="")
+write.csv(TOP_WS, "TOP_WS.csv", row.names = FALSE, na="")
+write.csv(TOP_MD, "TOP_MD.csv", row.names = FALSE, na="")
+write.csv(TOP_WD, "TOP_WD.csv", row.names = FALSE, na="")
+write.csv(TOP_XD, "TOP_XD.csv", row.names = FALSE, na="")
+```
+```{r Train-Test Split}
+# Edit Year column
+TOP_MS$Year<-as.Date(paste("01", TOP_MS$Year, sep = "-"), format = "%d-%b-%y")
+TOP_WS$Year<-as.Date(paste("01", TOP_WS$Year, sep = "-"), format = "%d-%b-%y")
+TOP_MD$Year<-as.Date(paste("01", TOP_MD$Year, sep = "-"), format = "%d-%b-%y")
+TOP_WD$Year<-as.Date(paste("01", TOP_WD$Year, sep = "-"), format = "%d-%b-%y")
+TOP_XD$Year<-as.Date(paste("01", TOP_XD$Year, sep = "-"), format = "%d-%b-%y")
+# # MS
+TOP_MS <- TOP_MS[order(TOP_MS$Year), ]
+split_index_MS8020 <- floor(0.8 * nrow(TOP_MS))
+MStrain_data80 <- TOP_MS[1:split_index_MS8020, ]
+MStest_data20 <- TOP_MS[(split_index_MS8020 + 1):nrow(TOP_MS), ]
+# WS
+TOP_WS <- TOP_WS[order(TOP_WS$Year), ] 
+split_index_WS8020 <- floor(0.8 * nrow(TOP_WS)) 
+WStrain_data80 <- TOP_WS[1:split_index_WS8020, ] 
+WStest_data20 <- TOP_WS[(split_index_WS8020 + 1):nrow(TOP_WS), ] 
+# MD
+TOP_MD <- TOP_MD[order(TOP_MD$Year), ] 
+split_index_MD8020 <- floor(0.8 * nrow(TOP_MD)) 
+MDtrain_data80 <- TOP_MD[1:split_index_MD8020, ] 
+MDtest_data20 <- TOP_MD[(split_index_MD8020 + 1):nrow(TOP_MD), ] 
+# WD
+TOP_WD <- TOP_WD[order(TOP_WD$Year), ] 
+split_index_WD8020 <- floor(0.8 * nrow(TOP_WD)) 
+WDtrain_data80 <- TOP_WD[1:split_index_WD8020, ] 
+WDtest_data20 <- TOP_WD[(split_index_WD8020 + 1):nrow(TOP_WD), ] 
+# XD
+TOP_XD <- TOP_XD[order(TOP_XD$Year), ] 
+split_index_XD8020 <- floor(0.8 * nrow(TOP_XD)) 
+XDtrain_data80 <- TOP_XD[1:split_index_XD8020, ] 
+XDtest_data20 <- TOP_XD[(split_index_XD8020 + 1):nrow(TOP_XD), ] 
+###### Save
+write.csv(MStrain_data80, "TOP_MS_TRAIN.csv", row.names = FALSE)
+write.csv(MStest_data20, "TOP_MS_TEST.csv", row.names = FALSE)
+write.csv(WStrain_data80, "TOP_WS_TRAIN.csv", row.names = FALSE)
+write.csv(WStest_data20, "TOP_WS_TEST.csv", row.names = FALSE)
+write.csv(MDtrain_data80, "TOP_MD_TRAIN.csv", row.names = FALSE)
+write.csv(MDtest_data20, "TOP_MD_TEST.csv", row.names = FALSE)
+write.csv(WDtrain_data80, "TOP_WD_TRAIN.csv", row.names = FALSE)
+write.csv(WDtest_data20, "TOP_WD_TEST.csv", row.names = FALSE)
+write.csv(XDtrain_data80, "TOP_XD_TRAIN.csv", row.names = FALSE)
+write.csv(XDtest_data20, "TOP_XD_TEST.csv", row.names = FALSE)
+```
+
+Split dataframe for Application section
+```{r Application}
+# MS (5) -> Tour Decider
+MS_freq_df_cut5<- MS_freq_df[MS_freq_df$Frequency > 5, ]
+n_distinct(MS_freq_df_cut5$Player)
+MS_ids5 <- MS_freq_df_cut5$Player 
+APP_MS <- MS[MS$Winner %in% MS_ids5 & MS$Loser %in% MS_ids5, ]
+APP_MS
+# WS (40) -> Betting
+WS_freq_df_cut40<- WS_freq_df[WS_freq_df$Frequency > 40, ]
+n_distinct(WS_freq_df_cut40$Player)
+WS_ids40 <- WS_freq_df_cut40$Player 
+APP_WS <- WS[WS$Winner %in% WS_ids40 & WS$Loser %in% WS_ids40, ]
+APP_WS
+
+write.csv(APP_MS, "APPLICATION_MS.csv", row.names = FALSE, na="")
+write.csv(APP_WS, "APPLICATION_WS.csv", row.names = FALSE, na="")
+```

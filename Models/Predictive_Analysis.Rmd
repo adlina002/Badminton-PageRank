@@ -1,0 +1,1339 @@
+---
+title: "Predictive Analysis Method"
+author: "Student id: 22078426"
+date: "2025-04-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(purrr)
+library(Kendall)
+library(DescTools)
+library(openxlsx)
+MS_TEST<- read.csv("TOP_MS_TEST.csv")
+MS_TRAIN<- read.csv("TOP_MS_TRAIN.csv")
+WS_TEST<- read.csv("TOP_WS_TEST.csv")
+WS_TRAIN<- read.csv("TOP_WS_TRAIN.csv")
+MD_TEST<- read.csv("TOP_MD_TEST.csv")
+MD_TRAIN<- read.csv("TOP_MD_TRAIN.csv")
+WD_TEST<- read.csv("TOP_WD_TEST.csv")
+WD_TRAIN<- read.csv("TOP_WD_TRAIN.csv")
+XD_TEST<- read.csv("TOP_XD_TEST.csv")
+XD_TRAIN<- read.csv("TOP_XD_TRAIN.csv")
+latesttour<- read.csv("tourID.csv",header = FALSE) 
+latesttourID<- latesttour$V1
+```
+
+Note:
+
+    - Run the PR functions from the PR.rmd file first in the environment!
+      
+```{r Method 1}
+method1 <- function(train_PR_df1, test_df1, pr_column = "PageRank") {
+# Check that both Winner and Loser are in the Train Dataset
+  test_filtered <- test_df1[test_df1$Winner %in% train_PR_df1$Player & 
+                             test_df1$Loser %in% train_PR_df1$Player, ]
+  
+# Create a new column to note PR scores of winner and loser
+  test_filtered$PR_winner <- train_PR_df1[[pr_column]][match(test_filtered$Winner, train_PR_df1$Player)]
+  test_filtered$PR_loser <- train_PR_df1[[pr_column]][match(test_filtered$Loser, train_PR_df1$Player)]
+  
+# Check if the prediction is correct
+# Assign 1 if the winner's PR score is more than the loser's PR score
+  test_filtered$Correct_Prediction <- ifelse(test_filtered$PR_winner >
+                                             test_filtered$PR_loser, 1, 0)
+  
+# Calculate the accuracy
+  total_matches <- nrow(test_filtered)
+  correct_matches <- sum(test_filtered$Correct_Prediction, na.rm = TRUE)
+  accuracy <- correct_matches / total_matches
+  
+# Return results
+  return(list(
+    Correct_predictions = correct_matches,
+    Total_matches = total_matches,
+    Accuracy = accuracy
+  ))
+}
+```
+```{r Method 2}
+method2 <- function(train_PR_df, test_df, pr_column = "PageRank") {
+# Check that both Winner and Loser are in the Train Dataset
+  test_filtered <- test_df[test_df$Winner %in% train_PR_df$Player & 
+                             test_df$Loser %in% train_PR_df$Player, ]
+  
+# Create a new column to note PR scores of winner and loser
+  test_filtered$PR_winner <- train_PR_df[[pr_column]][match(test_filtered$Winner, train_PR_df$Player)]
+  test_filtered$PR_loser <- train_PR_df[[pr_column]][match(test_filtered$Loser, train_PR_df$Player)]
+  
+# Calculate prediction (probability that Winner wins)
+  test_filtered$Prediction <- test_filtered$PR_winner / 
+    (test_filtered$PR_winner + test_filtered$PR_loser)
+  
+# Calculate Match-Level Accuracy
+  test_filtered$Match_Accuracy <- 1 - abs(test_filtered$Prediction - 1) 
+  
+# Calculate Average Accuracy
+  total_matches <- nrow(test_filtered)  
+  sum_accuracies <- sum(test_filtered$Match_Accuracy) 
+  Average_Accuracy <- mean(test_filtered$Match_Accuracy, na.rm = TRUE)  
+  accuracy_summary <- summary(test_filtered$Match_Accuracy, na.rm = TRUE)  
+  
+# Return results
+  return(list(
+    Total_matches = total_matches,
+    Sum_accuracy = sum_accuracies,
+    Average_Accuracy = Average_Accuracy,
+    Accuracy_summary = accuracy_summary
+  ))
+}
+```
+```{r Method 3}
+method3 <- function(train_PR_df, test_df, pr_column = "PageRank") {
+# Check that both Winner and Loser are in the Train Dataset
+  test_filtered <- test_df[test_df$Winner %in% train_PR_df$Player & 
+                           test_df$Loser %in% train_PR_df$Player, ]
+
+# Build Head-to-head table
+  test_filtered$Pair <- paste(pmin(test_filtered$Winner, test_filtered$Loser),
+                              pmax(test_filtered$Winner, test_filtered$Loser),
+                              sep = "-")
+  h2h_results <- aggregate(list(Meetups = test_filtered$Winner), 
+                           by = list(Pair = test_filtered$Pair), 
+                           FUN = length)
+  h2h_results$Wins_Player1 <- sapply(strsplit(h2h_results$Pair, "-"), function(x)
+    sum(test_filtered$Winner == x[1] & test_filtered$Pair == paste(x[1], x[2], sep = "-")))
+  h2h_results$Wins_Player2 <- h2h_results$Meetups - h2h_results$Wins_Player1
+  
+# Assign PageRank scores to Player 1 & 2
+  h2h_results$P1 <- sapply(strsplit(h2h_results$Pair, "-"), `[`, 1)
+  h2h_results$P2 <- sapply(strsplit(h2h_results$Pair, "-"), `[`, 2)
+  h2h_results$PR_P1 <- train_PR_df[[pr_column]][match(h2h_results$P1, train_PR_df$Player)]
+  h2h_results$PR_P2 <- train_PR_df[[pr_column]][match(h2h_results$P2, train_PR_df$Player)]
+  
+# Calculate Actual Win Probability for Player 1
+  h2h_results$Actual <- h2h_results$Wins_Player1 / 
+    (h2h_results$Wins_Player1 + h2h_results$Wins_Player2)
+  
+# Calculate prediction of win probability
+  h2h_results$Prediction <- h2h_results$PR_P1 / (h2h_results$PR_P1 + h2h_results$PR_P2)
+# Calculate pair-level Accuracy
+  h2h_results$Match_Accuracy <- 1 - abs(h2h_results$Prediction - h2h_results$Actual)
+# Calculate weighted Accuracy
+  h2h_results$Component <- h2h_results$Match_Accuracy * h2h_results$Meetups
+# Calculate Average Accuracy
+  total_matches <- sum(h2h_results$Meetups)  # Total matches across all pairs
+  sum_component <- sum(h2h_results$Component, na.rm = TRUE)  # Total of all weighted accuracy
+  Average_Accuracy <- sum_component / total_matches  # Average accuracy scaled by total matches
+  
+# Return results
+  return(list(
+    Total_matches = total_matches,
+    Total_Matchups= nrow(h2h_results),
+    Sum_Weighted_Accuracy = sum_component,
+    Average_Accuracy = Average_Accuracy,
+    Accuracy_Summary = summary(h2h_results$Match_Accuracy),
+    Weighted_Accuracy_df = h2h_results 
+  ))
+}
+```
+
+# Full cross validation run (80Train-20Test)
+## Train dataset on PR
+```{r all other PR}
+# MS
+PR1_MS<- PR1(MS_TRAIN)
+PR2.1_MS<- PR2.1(MS_TRAIN)
+PR2.3_MS<- PR2.3(MS_TRAIN)
+PR3.1_MS<- PR3.1(MS_TRAIN)
+PR4_MS<- PR4(MS_TRAIN)
+# WS
+PR1_WS<- PR1(WS_TRAIN)
+PR2.1_WS<- PR2.1(WS_TRAIN)
+PR2.3_WS<- PR2.3(WS_TRAIN)
+PR3.1_WS<- PR3.1(WS_TRAIN)
+PR4_WS<- PR4(WS_TRAIN)
+# MD
+PR1_MD<- PR1(MD_TRAIN)
+PR2.1_MD<- PR2.1(MD_TRAIN)
+PR2.3_MD<- PR2.3(MD_TRAIN)
+PR3.1_MD<- PR3.1(MD_TRAIN)
+PR4_MD<- PR4(MD_TRAIN)
+# WD
+PR1_WD<- PR1(WD_TRAIN)
+PR2.1_WD<- PR2.1(WD_TRAIN)
+PR2.3_WD<- PR2.3(WD_TRAIN)
+PR3.1_WD<- PR3.1(WD_TRAIN)
+PR4_WD<- PR4(WD_TRAIN)
+# XD
+PR1_XD<- PR1(XD_TRAIN)
+PR2.1_XD<- PR2.1(XD_TRAIN)
+PR2.3_XD<- PR2.3(XD_TRAIN)
+PR3.1_XD<- PR3.1(XD_TRAIN)
+PR4_XD<- PR4(XD_TRAIN)
+```
+```{r PR2.2}
+# MS
+PR2.2_MS0.01<- PR2.2(MS_TRAIN,p=0.01)
+PR2.2_MS0.05<- PR2.2(MS_TRAIN,p=0.05)
+PR2.2_MS0.1<- PR2.2(MS_TRAIN,p=0.1)
+PR2.2_MS0.2<- PR2.2(MS_TRAIN,p=0.2)
+PR2.2_MS0.3<- PR2.2(MS_TRAIN,p=0.3)
+PR2.2_MS0.4<- PR2.2(MS_TRAIN,p=0.4)
+PR2.2_MS0.5<- PR2.2(MS_TRAIN,p=0.5)
+# WS
+PR2.2_WS0.01<- PR2.2(WS_TRAIN,p=0.01)
+PR2.2_WS0.05<- PR2.2(WS_TRAIN,p=0.05)
+PR2.2_WS0.1<- PR2.2(WS_TRAIN,p=0.1)
+PR2.2_WS0.2<- PR2.2(WS_TRAIN,p=0.2)
+PR2.2_WS0.3<- PR2.2(WS_TRAIN,p=0.3)
+PR2.2_WS0.4<- PR2.2(WS_TRAIN,p=0.4)
+PR2.2_WS0.5<- PR2.2(WS_TRAIN,p=0.5)
+# MD
+PR2.2_MD0.01<- PR2.2(MD_TRAIN,p=0.01)
+PR2.2_MD0.05<- PR2.2(MD_TRAIN,p=0.05)
+PR2.2_MD0.1<- PR2.2(MD_TRAIN,p=0.1)
+PR2.2_MD0.2<- PR2.2(MD_TRAIN,p=0.2)
+PR2.2_MD0.3<- PR2.2(MD_TRAIN,p=0.3)
+PR2.2_MD0.4<- PR2.2(MD_TRAIN,p=0.4)
+PR2.2_MD0.5<- PR2.2(MD_TRAIN,p=0.5)
+# WD
+PR2.2_WD0.01<- PR2.2(WD_TRAIN,p=0.01)
+PR2.2_WD0.05<- PR2.2(WD_TRAIN,p=0.05)
+PR2.2_WD0.1<- PR2.2(WD_TRAIN,p=0.1)
+PR2.2_WD0.2<- PR2.2(WD_TRAIN,p=0.2)
+PR2.2_WD0.3<- PR2.2(WD_TRAIN,p=0.3)
+PR2.2_WD0.4<- PR2.2(WD_TRAIN,p=0.4)
+PR2.2_WD0.5<- PR2.2(WD_TRAIN,p=0.5)
+# XD
+PR2.2_XD0.01<- PR2.2(XD_TRAIN,p=0.01)
+PR2.2_XD0.05<- PR2.2(XD_TRAIN,p=0.05)
+PR2.2_XD0.1<- PR2.2(XD_TRAIN,p=0.1)
+PR2.2_XD0.2<- PR2.2(XD_TRAIN,p=0.2)
+PR2.2_XD0.3<- PR2.2(XD_TRAIN,p=0.3)
+PR2.2_XD0.4<- PR2.2(XD_TRAIN,p=0.4)
+PR2.2_XD0.5<- PR2.2(XD_TRAIN,p=0.5)
+```
+```{r PR3.2}
+# MS
+PR3.2_MS0.5<- PR3.2(MS_TRAIN,p=0.5)
+PR3.2_MS1<- PR3.2(MS_TRAIN,p=1)
+PR3.2_MS1.5<- PR3.2(MS_TRAIN,p=1.5)
+PR3.2_MS2<- PR3.2(MS_TRAIN,p=2)
+PR3.2_MS2.5<- PR3.2(MS_TRAIN,p=2.5)
+PR3.2_MS3<- PR3.2(MS_TRAIN,p=3)
+PR3.2_MS3.5<- PR3.2(MS_TRAIN,p=3.5)
+PR3.2_MS4<- PR3.2(MS_TRAIN,p=4)
+PR3.2_MS4.5<- PR3.2(MS_TRAIN,p=4.5)
+PR3.2_MS5<- PR3.2(MS_TRAIN,p=5)
+# WS
+PR3.2_WS0.5<- PR3.2(WS_TRAIN,p=0.5)
+PR3.2_WS1<- PR3.2(WS_TRAIN,p=1)
+PR3.2_WS1.5<- PR3.2(WS_TRAIN,p=1.5)
+PR3.2_WS2<- PR3.2(WS_TRAIN,p=2)
+PR3.2_WS2.5<- PR3.2(WS_TRAIN,p=2.5)
+PR3.2_WS3<- PR3.2(WS_TRAIN,p=3)
+PR3.2_WS3.5<- PR3.2(WS_TRAIN,p=3.5)
+PR3.2_WS4<- PR3.2(WS_TRAIN,p=4)
+PR3.2_WS4.5<- PR3.2(WS_TRAIN,p=4.5)
+PR3.2_WS5<- PR3.2(WS_TRAIN,p=5)
+# MD
+PR3.2_MD0.5<- PR3.2(MD_TRAIN,p=0.5)
+PR3.2_MD1<- PR3.2(MD_TRAIN,p=1)
+PR3.2_MD1.5<- PR3.2(MD_TRAIN,p=1.5)
+PR3.2_MD2<- PR3.2(MD_TRAIN,p=2)
+PR3.2_MD2.5<- PR3.2(MD_TRAIN,p=2.5)
+PR3.2_MD3<- PR3.2(MD_TRAIN,p=3)
+PR3.2_MD3.5<- PR3.2(MD_TRAIN,p=3.5)
+PR3.2_MD4<- PR3.2(MD_TRAIN,p=4)
+PR3.2_MD4.5<- PR3.2(MD_TRAIN,p=4.5)
+PR3.2_MD5<- PR3.2(MD_TRAIN,p=5)
+# WD
+PR3.2_WD0.5<- PR3.2(WD_TRAIN,p=0.5)
+PR3.2_WD1<- PR3.2(WD_TRAIN,p=1)
+PR3.2_WD1.5<- PR3.2(WD_TRAIN,p=1.5)
+PR3.2_WD2<- PR3.2(WD_TRAIN,p=2)
+PR3.2_WD2.5<- PR3.2(WD_TRAIN,p=2.5)
+PR3.2_WD3<- PR3.2(WD_TRAIN,p=3)
+PR3.2_WD3.5<- PR3.2(WD_TRAIN,p=3.5)
+PR3.2_WD4<- PR3.2(WD_TRAIN,p=4)
+PR3.2_WD4.5<- PR3.2(WD_TRAIN,p=4.5)
+PR3.2_WD5<- PR3.2(WD_TRAIN,p=5)
+# XD
+PR3.2_XD0.5<- PR3.2(XD_TRAIN,p=0.5)
+PR3.2_XD1<- PR3.2(XD_TRAIN,p=1)
+PR3.2_XD1.5<- PR3.2(XD_TRAIN,p=1.5)
+PR3.2_XD2<- PR3.2(XD_TRAIN,p=2)
+PR3.2_XD2.5<- PR3.2(XD_TRAIN,p=2.5)
+PR3.2_XD3<- PR3.2(XD_TRAIN,p=3)
+PR3.2_XD3.5<- PR3.2(XD_TRAIN,p=3.5)
+PR3.2_XD4<- PR3.2(XD_TRAIN,p=4)
+PR3.2_XD4.5<- PR3.2(XD_TRAIN,p=4.5)
+PR3.2_XD5<- PR3.2(XD_TRAIN,p=5)
+```
+```{r PR3.3}
+# MS
+PR3.3_MS0.5<- PR3.3(MS_TRAIN,p=0.5)
+PR3.3_MS1<- PR3.3(MS_TRAIN,p=1)
+PR3.3_MS1.5<- PR3.3(MS_TRAIN,p=1.5)
+PR3.3_MS2<- PR3.3(MS_TRAIN,p=2)
+PR3.3_MS2.5<- PR3.3(MS_TRAIN,p=2.5)
+PR3.3_MS3<- PR3.3(MS_TRAIN,p=3)
+PR3.3_MS3.5<- PR3.3(MS_TRAIN,p=3.5)
+PR3.3_MS4<- PR3.3(MS_TRAIN,p=4)
+PR3.3_MS4.5<- PR3.3(MS_TRAIN,p=4.5)
+PR3.3_MS5<- PR3.3(MS_TRAIN,p=5)
+# WS
+PR3.3_WS0.5<- PR3.3(WS_TRAIN,p=0.5)
+PR3.3_WS1<- PR3.3(WS_TRAIN,p=1)
+PR3.3_WS1.5<- PR3.3(WS_TRAIN,p=1.5)
+PR3.3_WS2<- PR3.3(WS_TRAIN,p=2)
+PR3.3_WS2.5<- PR3.3(WS_TRAIN,p=2.5)
+PR3.3_WS3<- PR3.3(WS_TRAIN,p=3)
+PR3.3_WS3.5<- PR3.3(WS_TRAIN,p=3.5)
+PR3.3_WS4<- PR3.3(WS_TRAIN,p=4)
+PR3.3_WS4.5<- PR3.3(WS_TRAIN,p=4.5)
+PR3.3_WS5<- PR3.3(WS_TRAIN,p=5)
+# MD
+PR3.3_MD0.5<- PR3.3(MD_TRAIN,p=0.5)
+PR3.3_MD1<- PR3.3(MD_TRAIN,p=1)
+PR3.3_MD1.5<- PR3.3(MD_TRAIN,p=1.5)
+PR3.3_MD2<- PR3.3(MD_TRAIN,p=2)
+PR3.3_MD2.5<- PR3.3(MD_TRAIN,p=2.5)
+PR3.3_MD3<- PR3.3(MD_TRAIN,p=3)
+PR3.3_MD3.5<- PR3.3(MD_TRAIN,p=3.5)
+PR3.3_MD4<- PR3.3(MD_TRAIN,p=4)
+PR3.3_MD4.5<- PR3.3(MD_TRAIN,p=4.5)
+PR3.3_MD5<- PR3.3(MD_TRAIN,p=5)
+# WD
+PR3.3_WD0.5<- PR3.3(WD_TRAIN,p=0.5)
+PR3.3_WD1<- PR3.3(WD_TRAIN,p=1)
+PR3.3_WD1.5<- PR3.3(WD_TRAIN,p=1.5)
+PR3.3_WD2<- PR3.3(WD_TRAIN,p=2)
+PR3.3_WD2.5<- PR3.3(WD_TRAIN,p=2.5)
+PR3.3_WD3<- PR3.3(WD_TRAIN,p=3)
+PR3.3_WD3.5<- PR3.3(WD_TRAIN,p=3.5)
+PR3.3_WD4<- PR3.3(WD_TRAIN,p=4)
+PR3.3_WD4.5<- PR3.3(WD_TRAIN,p=4.5)
+PR3.3_WD5<- PR3.3(WD_TRAIN,p=5)
+# XD
+PR3.3_XD0.5<- PR3.3(XD_TRAIN,p=0.5)
+PR3.3_XD1<- PR3.3(XD_TRAIN,p=1)
+PR3.3_XD1.5<- PR3.3(XD_TRAIN,p=1.5)
+PR3.3_XD2<- PR3.3(XD_TRAIN,p=2)
+PR3.3_XD2.5<- PR3.3(XD_TRAIN,p=2.5)
+PR3.3_XD3<- PR3.3(XD_TRAIN,p=3)
+PR3.3_XD3.5<- PR3.3(XD_TRAIN,p=3.5)
+PR3.3_XD4<- PR3.3(XD_TRAIN,p=4)
+PR3.3_XD4.5<- PR3.3(XD_TRAIN,p=4.5)
+PR3.3_XD5<- PR3.3(XD_TRAIN,p=5)
+```
+```{r PR5}
+# MS, p=0.5
+PR5_MS1.5<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=1.5)
+PR5_MS2<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=2)
+PR5_MS2.5<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=2.5)
+PR5_MS3<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=3)
+PR5_MS3.5<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=3.5)
+PR5_MS4<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=4)
+PR5_MS4.5<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=4.5)
+PR5_MS5<- PR5(MS_TRAIN,latesttourID, p=0.5, time_scale=5)
+# WS, p=0.5
+PR5_WS1.5<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=1.5)
+PR5_WS2<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=2)
+PR5_WS2.5<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=2.5)
+PR5_WS3<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=3)
+PR5_WS3.5<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=3.5)
+PR5_WS4<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=4)
+PR5_WS4.5<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=4.5)
+PR5_WS5<- PR5(WS_TRAIN,latesttourID, p=0.5, time_scale=5)
+# MD, p=0.5
+PR5_MD1.5<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=1.5)
+PR5_MD2<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=2)
+PR5_MD2.5<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=2.5)
+PR5_MD3<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=3)
+PR5_MD3.5<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=3.5)
+PR5_MD4<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=4)
+PR5_MD4.5<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=4.5)
+PR5_MD5<- PR5(MD_TRAIN,latesttourID, p=0.5, time_scale=5)
+# WD, p=3
+PR5_WD1.5<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=1.5)
+PR5_WD2<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=2)
+PR5_WD2.5<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=2.5)
+PR5_WD3<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=3)
+PR5_WD3.5<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=3.5)
+PR5_WD4<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=4)
+PR5_WD4.5<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=4.5)
+PR5_WD5<- PR5(WD_TRAIN,latesttourID, p=3, time_scale=5)
+# XD, p=0.5
+PR5_XD1.5<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=1.5)
+PR5_XD2<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=2)
+PR5_XD2.5<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=2.5)
+PR5_XD3<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=3)
+PR5_XD3.5<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=3.5)
+PR5_XD4<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=4)
+PR5_XD4.5<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=4.5)
+PR5_XD5<- PR5(XD_TRAIN,latesttourID, p=0.5, time_scale=5)
+```
+```{r reference}
+BT_MS <- BT(MS_TRAIN)
+BT_WS <- BT(WS_TRAIN)
+BT_MD <- BT(MD_TRAIN)
+BT_WD <- BT(WD_TRAIN)
+BT_XD <- BT(XD_TRAIN)
+ELO_MS <- ELO(MS_TRAIN)
+ELO_WS <- ELO(WS_TRAIN)
+ELO_MD <- ELO(MD_TRAIN)
+ELO_WD <- ELO(WD_TRAIN)
+ELO_XD <- ELO(XD_TRAIN)
+```
+## Method 1
+```{r all others #METHOD1}
+# MS
+M1_PR1_MS <- method1(PR1_MS, MS_TEST)$Accuracy
+M1_PR2.1_MS <- method1(PR2.1_MS, MS_TEST)$Accuracy
+M1_PR2.3_MS <- method1(PR2.3_MS, MS_TEST)$Accuracy
+M1_PR3.1_MS <- method1(PR3.1_MS, MS_TEST)$Accuracy
+M1_PR4_MS <- method1(PR4_MS, MS_TEST)$Accuracy
+# WS
+M1_PR1_WS <- method1(PR1_WS, WS_TEST)$Accuracy
+M1_PR2.1_WS <- method1(PR2.1_WS, WS_TEST)$Accuracy
+M1_PR2.3_WS <- method1(PR2.3_WS, WS_TEST)$Accuracy
+M1_PR3.1_WS <- method1(PR3.1_WS, WS_TEST)$Accuracy
+M1_PR4_WS <- method1(PR4_WS, WS_TEST)$Accuracy
+# MD
+M1_PR1_MD <- method1(PR1_MD, MD_TEST)$Accuracy
+M1_PR2.1_MD <- method1(PR2.1_MD, MD_TEST)$Accuracy
+M1_PR2.3_MD <- method1(PR2.3_MD, MD_TEST)$Accuracy
+M1_PR3.1_MD <- method1(PR3.1_MD, MD_TEST)$Accuracy
+M1_PR4_MD <- method1(PR4_MD, MD_TEST)$Accuracy
+# WD
+M1_PR1_WD <- method1(PR1_WD, WD_TEST)$Accuracy
+M1_PR2.1_WD <- method1(PR2.1_WD, WD_TEST)$Accuracy
+M1_PR2.3_WD <- method1(PR2.3_WD, WD_TEST)$Accuracy
+M1_PR3.1_WD <- method1(PR3.1_WD, WD_TEST)$Accuracy
+M1_PR4_WD <- method1(PR4_WD, WD_TEST)$Accuracy
+# XD
+M1_PR1_XD <- method1(PR1_XD, XD_TEST)$Accuracy
+M1_PR2.1_XD <- method1(PR2.1_XD, XD_TEST)$Accuracy
+M1_PR2.3_XD <- method1(PR2.3_XD, XD_TEST)$Accuracy
+M1_PR3.1_XD <- method1(PR3.1_XD, XD_TEST)$Accuracy
+M1_PR4_XD <- method1(PR4_XD, XD_TEST)$Accuracy
+```
+```{r full run PR2.2 #METHOD1}
+#p= 0.01,0.05,0.1,0.2,0.3,0.4,0.5
+# MS
+M1_PR2.2_MS0.01 <- method1(PR2.2_MS0.01, MS_TEST)$Accuracy
+M1_PR2.2_MS0.05 <- method1(PR2.2_MS0.05, MS_TEST)$Accuracy
+M1_PR2.2_MS0.1 <- method1(PR2.2_MS0.1, MS_TEST)$Accuracy
+M1_PR2.2_MS0.2 <- method1(PR2.2_MS0.2, MS_TEST)$Accuracy
+M1_PR2.2_MS0.3 <- method1(PR2.2_MS0.3, MS_TEST)$Accuracy
+M1_PR2.2_MS0.4 <- method1(PR2.2_MS0.4, MS_TEST)$Accuracy
+M1_PR2.2_MS0.5 <- method1(PR2.2_MS0.5, MS_TEST)$Accuracy
+# WS
+M1_PR2.2_WS0.01 <- method1(PR2.2_WS0.01, WS_TEST)$Accuracy
+M1_PR2.2_WS0.05 <- method1(PR2.2_WS0.05, WS_TEST)$Accuracy
+M1_PR2.2_WS0.1 <- method1(PR2.2_WS0.1, WS_TEST)$Accuracy
+M1_PR2.2_WS0.2 <- method1(PR2.2_WS0.2, WS_TEST)$Accuracy
+M1_PR2.2_WS0.3 <- method1(PR2.2_WS0.3, WS_TEST)$Accuracy
+M1_PR2.2_WS0.4 <- method1(PR2.2_WS0.4, WS_TEST)$Accuracy
+M1_PR2.2_WS0.5 <- method1(PR2.2_WS0.5, WS_TEST)$Accuracy
+# MD
+M1_PR2.2_MD0.01 <- method1(PR2.2_MD0.01, MD_TEST)$Accuracy
+M1_PR2.2_MD0.05 <- method1(PR2.2_MD0.05, MD_TEST)$Accuracy
+M1_PR2.2_MD0.1 <- method1(PR2.2_MD0.1, MD_TEST)$Accuracy
+M1_PR2.2_MD0.2 <- method1(PR2.2_MD0.2, MD_TEST)$Accuracy
+M1_PR2.2_MD0.3 <- method1(PR2.2_MD0.3, MD_TEST)$Accuracy
+M1_PR2.2_MD0.4 <- method1(PR2.2_MD0.4, MD_TEST)$Accuracy
+M1_PR2.2_MD0.5 <- method1(PR2.2_MD0.5, MD_TEST)$Accuracy
+# WD
+M1_PR2.2_WD0.01 <- method1(PR2.2_WD0.01, WD_TEST)$Accuracy
+M1_PR2.2_WD0.05 <- method1(PR2.2_WD0.05, WD_TEST)$Accuracy
+M1_PR2.2_WD0.1 <- method1(PR2.2_WD0.1, WD_TEST)$Accuracy
+M1_PR2.2_WD0.2 <- method1(PR2.2_WD0.2, WD_TEST)$Accuracy
+M1_PR2.2_WD0.3 <- method1(PR2.2_WD0.3, WD_TEST)$Accuracy
+M1_PR2.2_WD0.4 <- method1(PR2.2_WD0.4, WD_TEST)$Accuracy
+M1_PR2.2_WD0.5 <- method1(PR2.2_WD0.5, WD_TEST)$Accuracy
+# XD
+M1_PR2.2_XD0.01 <- method1(PR2.2_XD0.01, XD_TEST)$Accuracy
+M1_PR2.2_XD0.05 <- method1(PR2.2_XD0.05, XD_TEST)$Accuracy
+M1_PR2.2_XD0.1 <- method1(PR2.2_XD0.1, XD_TEST)$Accuracy
+M1_PR2.2_XD0.2 <- method1(PR2.2_XD0.2, XD_TEST)$Accuracy
+M1_PR2.2_XD0.3 <- method1(PR2.2_XD0.3, XD_TEST)$Accuracy
+M1_PR2.2_XD0.4 <- method1(PR2.2_XD0.4, XD_TEST)$Accuracy
+M1_PR2.2_XD0.5 <- method1(PR2.2_XD0.5, XD_TEST)$Accuracy
+
+```
+```{r full run PR3.2 #METHOD1}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+M1_PR3.2_MS0.5 <- method1(PR3.2_MS0.5, MS_TEST)$Accuracy
+M1_PR3.2_MS1 <- method1(PR3.2_MS1, MS_TEST)$Accuracy
+M1_PR3.2_MS1.5 <- method1(PR3.2_MS1.5, MS_TEST)$Accuracy
+M1_PR3.2_MS2 <- method1(PR3.2_MS2, MS_TEST)$Accuracy
+M1_PR3.2_MS2.5 <- method1(PR3.2_MS2.5, MS_TEST)$Accuracy
+M1_PR3.2_MS3 <- method1(PR3.2_MS3, MS_TEST)$Accuracy
+M1_PR3.2_MS3.5 <- method1(PR3.2_MS3.5, MS_TEST)$Accuracy
+M1_PR3.2_MS4 <- method1(PR3.2_MS4, MS_TEST)$Accuracy
+M1_PR3.2_MS4.5 <- method1(PR3.2_MS4.5, MS_TEST)$Accuracy
+M1_PR3.2_MS5 <- method1(PR3.2_MS5, MS_TEST)$Accuracy
+# WS
+M1_PR3.2_WS0.5 <- method1(PR3.2_WS0.5, WS_TEST)$Accuracy
+M1_PR3.2_WS1 <- method1(PR3.2_WS1, WS_TEST)$Accuracy
+M1_PR3.2_WS1.5 <- method1(PR3.2_WS1.5, WS_TEST)$Accuracy
+M1_PR3.2_WS2 <- method1(PR3.2_WS2, WS_TEST)$Accuracy
+M1_PR3.2_WS2.5 <- method1(PR3.2_WS2.5, WS_TEST)$Accuracy
+M1_PR3.2_WS3 <- method1(PR3.2_WS3, WS_TEST)$Accuracy
+M1_PR3.2_WS3.5 <- method1(PR3.2_WS3.5, WS_TEST)$Accuracy
+M1_PR3.2_WS4 <- method1(PR3.2_WS4, WS_TEST)$Accuracy
+M1_PR3.2_WS4.5 <- method1(PR3.2_WS4.5, WS_TEST)$Accuracy
+M1_PR3.2_WS5 <- method1(PR3.2_WS5, WS_TEST)$Accuracy
+# MD
+M1_PR3.2_MD0.5 <- method1(PR3.2_MD0.5, MD_TEST)$Accuracy
+M1_PR3.2_MD1 <- method1(PR3.2_MD1, MD_TEST)$Accuracy
+M1_PR3.2_MD1.5 <- method1(PR3.2_MD1.5, MD_TEST)$Accuracy
+M1_PR3.2_MD2 <- method1(PR3.2_MD2, MD_TEST)$Accuracy
+M1_PR3.2_MD2.5 <- method1(PR3.2_MD2.5, MD_TEST)$Accuracy
+M1_PR3.2_MD3 <- method1(PR3.2_MD3, MD_TEST)$Accuracy
+M1_PR3.2_MD3.5 <- method1(PR3.2_MD3.5, MD_TEST)$Accuracy
+M1_PR3.2_MD4 <- method1(PR3.2_MD4, MD_TEST)$Accuracy
+M1_PR3.2_MD4.5 <- method1(PR3.2_MD4.5, MD_TEST)$Accuracy
+M1_PR3.2_MD5 <- method1(PR3.2_MD5, MD_TEST)$Accuracy
+# WD
+M1_PR3.2_WD0.5 <- method1(PR3.2_WD0.5, WD_TEST)$Accuracy
+M1_PR3.2_WD1 <- method1(PR3.2_WD1, WD_TEST)$Accuracy
+M1_PR3.2_WD1.5 <- method1(PR3.2_WD1.5, WD_TEST)$Accuracy
+M1_PR3.2_WD2 <- method1(PR3.2_WD2, WD_TEST)$Accuracy
+M1_PR3.2_WD2.5 <- method1(PR3.2_WD2.5, WD_TEST)$Accuracy
+M1_PR3.2_WD3 <- method1(PR3.2_WD3, WD_TEST)$Accuracy
+M1_PR3.2_WD3.5 <- method1(PR3.2_WD3.5, WD_TEST)$Accuracy
+M1_PR3.2_WD4 <- method1(PR3.2_WD4, WD_TEST)$Accuracy
+M1_PR3.2_WD4.5 <- method1(PR3.2_WD4.5, WD_TEST)$Accuracy
+M1_PR3.2_WD5 <- method1(PR3.2_WD5, WD_TEST)$Accuracy
+# XD
+M1_PR3.2_XD0.5 <- method1(PR3.2_XD0.5, XD_TEST)$Accuracy
+M1_PR3.2_XD1 <- method1(PR3.2_XD1, XD_TEST)$Accuracy
+M1_PR3.2_XD1.5 <- method1(PR3.2_XD1.5, XD_TEST)$Accuracy
+M1_PR3.2_XD2 <- method1(PR3.2_XD2, XD_TEST)$Accuracy
+M1_PR3.2_XD2.5 <- method1(PR3.2_XD2.5, XD_TEST)$Accuracy
+M1_PR3.2_XD3 <- method1(PR3.2_XD3, XD_TEST)$Accuracy
+M1_PR3.2_XD3.5 <- method1(PR3.2_XD3.5, XD_TEST)$Accuracy
+M1_PR3.2_XD4 <- method1(PR3.2_XD4, XD_TEST)$Accuracy
+M1_PR3.2_XD4.5 <- method1(PR3.2_XD4.5, XD_TEST)$Accuracy
+M1_PR3.2_XD5 <- method1(PR3.2_XD5, XD_TEST)$Accuracy
+```
+```{r full run PR3.3 #METHOD1}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+M1_PR3.3_MS0.5 <- method1(PR3.3_MS0.5, MS_TEST)$Accuracy
+M1_PR3.3_MS1 <- method1(PR3.3_MS1, MS_TEST)$Accuracy
+M1_PR3.3_MS1.5 <- method1(PR3.3_MS1.5, MS_TEST)$Accuracy
+M1_PR3.3_MS2 <- method1(PR3.3_MS2, MS_TEST)$Accuracy
+M1_PR3.3_MS2.5 <- method1(PR3.3_MS2.5, MS_TEST)$Accuracy
+M1_PR3.3_MS3 <- method1(PR3.3_MS3, MS_TEST)$Accuracy
+M1_PR3.3_MS3.5 <- method1(PR3.3_MS3.5, MS_TEST)$Accuracy
+M1_PR3.3_MS4 <- method1(PR3.3_MS4, MS_TEST)$Accuracy
+M1_PR3.3_MS4.5 <- method1(PR3.3_MS4.5, MS_TEST)$Accuracy
+M1_PR3.3_MS5 <- method1(PR3.3_MS5, MS_TEST)$Accuracy
+# WS
+M1_PR3.3_WS0.5 <- method1(PR3.3_WS0.5, WS_TEST)$Accuracy
+M1_PR3.3_WS1 <- method1(PR3.3_WS1, WS_TEST)$Accuracy
+M1_PR3.3_WS1.5 <- method1(PR3.3_WS1.5, WS_TEST)$Accuracy
+M1_PR3.3_WS2 <- method1(PR3.3_WS2, WS_TEST)$Accuracy
+M1_PR3.3_WS2.5 <- method1(PR3.3_WS2.5, WS_TEST)$Accuracy
+M1_PR3.3_WS3 <- method1(PR3.3_WS3, WS_TEST)$Accuracy
+M1_PR3.3_WS3.5 <- method1(PR3.3_WS3.5, WS_TEST)$Accuracy
+M1_PR3.3_WS4 <- method1(PR3.3_WS4, WS_TEST)$Accuracy
+M1_PR3.3_WS4.5 <- method1(PR3.3_WS4.5, WS_TEST)$Accuracy
+M1_PR3.3_WS5 <- method1(PR3.3_WS5, WS_TEST)$Accuracy
+# MD
+M1_PR3.3_MD0.5 <- method1(PR3.3_MD0.5, MD_TEST)$Accuracy
+M1_PR3.3_MD1 <- method1(PR3.3_MD1, MD_TEST)$Accuracy
+M1_PR3.3_MD1.5 <- method1(PR3.3_MD1.5, MD_TEST)$Accuracy
+M1_PR3.3_MD2 <- method1(PR3.3_MD2, MD_TEST)$Accuracy
+M1_PR3.3_MD2.5 <- method1(PR3.3_MD2.5, MD_TEST)$Accuracy
+M1_PR3.3_MD3 <- method1(PR3.3_MD3, MD_TEST)$Accuracy
+M1_PR3.3_MD3.5 <- method1(PR3.3_MD3.5, MD_TEST)$Accuracy
+M1_PR3.3_MD4 <- method1(PR3.3_MD4, MD_TEST)$Accuracy
+M1_PR3.3_MD4.5 <- method1(PR3.3_MD4.5, MD_TEST)$Accuracy
+M1_PR3.3_MD5 <- method1(PR3.3_MD5, MD_TEST)$Accuracy
+# WD
+M1_PR3.3_WD0.5 <- method1(PR3.3_WD0.5, WD_TEST)$Accuracy
+M1_PR3.3_WD1 <- method1(PR3.3_WD1, WD_TEST)$Accuracy
+M1_PR3.3_WD1.5 <- method1(PR3.3_WD1.5, WD_TEST)$Accuracy
+M1_PR3.3_WD2 <- method1(PR3.3_WD2, WD_TEST)$Accuracy
+M1_PR3.3_WD2.5 <- method1(PR3.3_WD2.5, WD_TEST)$Accuracy
+M1_PR3.3_WD3 <- method1(PR3.3_WD3, WD_TEST)$Accuracy
+M1_PR3.3_WD3.5 <- method1(PR3.3_WD3.5, WD_TEST)$Accuracy
+M1_PR3.3_WD4 <- method1(PR3.3_WD4, WD_TEST)$Accuracy
+M1_PR3.3_WD4.5 <- method1(PR3.3_WD4.5, WD_TEST)$Accuracy
+M1_PR3.3_WD5 <- method1(PR3.3_WD5, WD_TEST)$Accuracy
+# XD
+M1_PR3.3_XD0.5 <- method1(PR3.3_XD0.5, XD_TEST)$Accuracy
+M1_PR3.3_XD1 <- method1(PR3.3_XD1, XD_TEST)$Accuracy
+M1_PR3.3_XD1.5 <- method1(PR3.3_XD1.5, XD_TEST)$Accuracy
+M1_PR3.3_XD2 <- method1(PR3.3_XD2, XD_TEST)$Accuracy
+M1_PR3.3_XD2.5 <- method1(PR3.3_XD2.5, XD_TEST)$Accuracy
+M1_PR3.3_XD3 <- method1(PR3.3_XD3, XD_TEST)$Accuracy
+M1_PR3.3_XD3.5 <- method1(PR3.3_XD3.5, XD_TEST)$Accuracy
+M1_PR3.3_XD4 <- method1(PR3.3_XD4, XD_TEST)$Accuracy
+M1_PR3.3_XD4.5 <- method1(PR3.3_XD4.5, XD_TEST)$Accuracy
+M1_PR3.3_XD5 <- method1(PR3.3_XD5, XD_TEST)$Accuracy
+```
+```{r full run PR5 #METHOD1}
+#t= 1.5,2,2.5,3,3.5,4,4.5,5
+# MS, p=0.5
+M1_PR5_MS1.5 <- method1(PR5_MS1.5, MS_TEST)$Accuracy
+M1_PR5_MS2 <- method1(PR5_MS2, MS_TEST)$Accuracy
+M1_PR5_MS2.5 <- method1(PR5_MS2.5, MS_TEST)$Accuracy
+M1_PR5_MS3 <- method1(PR5_MS3, MS_TEST)$Accuracy
+M1_PR5_MS3.5 <- method1(PR5_MS3.5, MS_TEST)$Accuracy
+M1_PR5_MS4 <- method1(PR5_MS4, MS_TEST)$Accuracy
+M1_PR5_MS4.5 <- method1(PR5_MS4.5, MS_TEST)$Accuracy
+M1_PR5_MS5 <- method1(PR5_MS5, MS_TEST)$Accuracy
+# WS, p=0.5
+M1_PR5_WS1.5 <- method1(PR5_WS1.5, WS_TEST)$Accuracy
+M1_PR5_WS2 <- method1(PR5_WS2, WS_TEST)$Accuracy
+M1_PR5_WS2.5 <- method1(PR5_WS2.5, WS_TEST)$Accuracy
+M1_PR5_WS3 <- method1(PR5_WS3, WS_TEST)$Accuracy
+M1_PR5_WS3.5 <- method1(PR5_WS3.5, WS_TEST)$Accuracy
+M1_PR5_WS4 <- method1(PR5_WS4, WS_TEST)$Accuracy
+M1_PR5_WS4.5 <- method1(PR5_WS4.5, WS_TEST)$Accuracy
+M1_PR5_WS5 <- method1(PR5_WS5, WS_TEST)$Accuracy
+# MD, p=0.5
+M1_PR5_MD1.5 <- method1(PR5_MD1.5, MD_TEST)$Accuracy
+M1_PR5_MD2 <- method1(PR5_MD2, MD_TEST)$Accuracy
+M1_PR5_MD2.5 <- method1(PR5_MD2.5, MD_TEST)$Accuracy
+M1_PR5_MD3 <- method1(PR5_MD3, MD_TEST)$Accuracy
+M1_PR5_MD3.5 <- method1(PR5_MD3.5, MD_TEST)$Accuracy
+M1_PR5_MD4 <- method1(PR5_MD4, MD_TEST)$Accuracy
+M1_PR5_MD4.5 <- method1(PR5_MD4.5, MD_TEST)$Accuracy
+M1_PR5_MD5 <- method1(PR5_MD5, MD_TEST)$Accuracy
+# WD, p=3
+M1_PR5_WD1.5 <- method1(PR5_WD1.5, WD_TEST)$Accuracy
+M1_PR5_WD2 <- method1(PR5_WD2, WD_TEST)$Accuracy
+M1_PR5_WD2.5 <- method1(PR5_WD2.5, WD_TEST)$Accuracy
+M1_PR5_WD3 <- method1(PR5_WD3, WD_TEST)$Accuracy
+M1_PR5_WD3.5 <- method1(PR5_WD3.5, WD_TEST)$Accuracy
+M1_PR5_WD4 <- method1(PR5_WD4, WD_TEST)$Accuracy
+M1_PR5_WD4.5 <- method1(PR5_WD4.5, WD_TEST)$Accuracy
+M1_PR5_WD5 <- method1(PR5_WD5, WD_TEST)$Accuracy
+# XD, p=0.5
+M1_PR5_XD1.5 <- method1(PR5_XD1.5, XD_TEST)$Accuracy
+M1_PR5_XD2 <- method1(PR5_XD2, XD_TEST)$Accuracy
+M1_PR5_XD2.5 <- method1(PR5_XD2.5, XD_TEST)$Accuracy
+M1_PR5_XD3 <- method1(PR5_XD3, XD_TEST)$Accuracy
+M1_PR5_XD3.5 <- method1(PR5_XD3.5, XD_TEST)$Accuracy
+M1_PR5_XD4 <- method1(PR5_XD4, XD_TEST)$Accuracy
+M1_PR5_XD4.5 <- method1(PR5_XD4.5, XD_TEST)$Accuracy
+M1_PR5_XD5 <- method1(PR5_XD5, XD_TEST)$Accuracy
+```
+```{r reference #METHOD1}
+M1_BT_MS<- method1(BT_MS, MS_TEST, pr_column = "Strength")$Accuracy
+M1_ELO_MS<- method1(ELO_MS, MS_TEST, pr_column = "Rating")$Accuracy
+
+M1_BT_WS<- method1(BT_WS, WS_TEST, pr_column = "Strength")$Accuracy
+M1_ELO_WS<- method1(ELO_WS, WS_TEST, pr_column = "Rating")$Accuracy
+
+M1_BT_MD<- method1(BT_MD, MD_TEST, pr_column = "Strength")$Accuracy
+M1_ELO_MD<- method1(ELO_WD, WD_TEST, pr_column = "Rating")$Accuracy
+
+M1_BT_WD<- method1(BT_WD, WD_TEST, pr_column = "Strength")$Accuracy
+M1_ELO_WD<- method1(ELO_WD, WD_TEST, pr_column = "Rating")$Accuracy
+
+M1_BT_XD<- method1(BT_XD, XD_TEST, pr_column = "Strength")$Accuracy
+M1_ELO_XD<- method1(ELO_XD, XD_TEST, pr_column = "Rating")$Accuracy
+```
+```{r Analysis of Results}
+method1(PR5_MS5, MS_TEST)$Correct_predictions - method1(ELO_MS, MS_TEST, pr_column = "Rating")$Correct_predictions
+method1(PR5_WS4.5, WS_TEST)$Correct_predictions - method1(ELO_WS, WS_TEST, pr_column = "Rating")$Correct_predictions
+method1(PR5_MD4.5, MD_TEST)$Correct_predictions - method1(ELO_MD, MD_TEST, pr_column = "Rating")$Correct_predictions
+method1(PR5_WD4.5, WD_TEST)$Correct_predictions - method1(BT_WD, WD_TEST, pr_column = "Strength")$Correct_predictions
+method1(PR5_XD4.5, XD_TEST)$Correct_predictions - method1(BT_XD, XD_TEST, pr_column = "Strength")$Correct_predictions
+```
+## Method 2
+```{r all others #METHOD2}
+# MS
+M2_PR1_MS <- method2(PR1_MS, MS_TEST)$Average_Accuracy
+M2_PR2.1_MS <- method2(PR2.1_MS, MS_TEST)$Average_Accuracy
+M2_PR2.3_MS <- method2(PR2.3_MS, MS_TEST)$Average_Accuracy
+M2_PR3.1_MS <- method2(PR3.1_MS, MS_TEST)$Average_Accuracy
+M2_PR4_MS <- method2(PR4_MS, MS_TEST)$Average_Accuracy
+# WS
+M2_PR1_WS <- method2(PR1_WS, WS_TEST)$Average_Accuracy
+M2_PR2.1_WS <- method2(PR2.1_WS, WS_TEST)$Average_Accuracy
+M2_PR2.3_WS <- method2(PR2.3_WS, WS_TEST)$Average_Accuracy
+M2_PR3.1_WS <- method2(PR3.1_WS, WS_TEST)$Average_Accuracy
+M2_PR4_WS <- method2(PR4_WS, WS_TEST)$Average_Accuracy
+# MD
+M2_PR1_MD <- method2(PR1_MD, MD_TEST)$Average_Accuracy
+M2_PR2.1_MD <- method2(PR2.1_MD, MD_TEST)$Average_Accuracy
+M2_PR2.3_MD <- method2(PR2.3_MD, MD_TEST)$Average_Accuracy
+M2_PR3.1_MD <- method2(PR3.1_MD, MD_TEST)$Average_Accuracy
+M2_PR4_MD <- method2(PR4_MD, MD_TEST)$Average_Accuracy
+# WD
+M2_PR1_WD <- method2(PR1_WD, WD_TEST)$Average_Accuracy
+M2_PR2.1_WD <- method2(PR2.1_WD, WD_TEST)$Average_Accuracy
+M2_PR2.3_WD <- method2(PR2.3_WD, WD_TEST)$Average_Accuracy
+M2_PR3.1_WD <- method2(PR3.1_WD, WD_TEST)$Average_Accuracy
+M2_PR4_WD <- method2(PR4_WD, WD_TEST)$Average_Accuracy
+# XD
+M2_PR1_XD <- method2(PR1_XD, XD_TEST)$Average_Accuracy
+M2_PR2.1_XD <- method2(PR2.1_XD, XD_TEST)$Average_Accuracy
+M2_PR2.3_XD <- method2(PR2.3_XD, XD_TEST)$Average_Accuracy
+M2_PR3.1_XD <- method2(PR3.1_XD, XD_TEST)$Average_Accuracy
+M2_PR4_XD <- method2(PR4_XD, XD_TEST)$Average_Accuracy
+```
+```{r full run PR2.2 #METHOD2}
+#p= 0.01,0.05,0.1,0.2,0.3,0.4,0.5
+# MS
+M2_PR2.2_MS0.01 <- method2(PR2.2_MS0.01, MS_TEST)$Average_Accuracy
+M2_PR2.2_MS0.05 <- method2(PR2.2_MS0.05, MS_TEST)$Average_Accuracy
+M2_PR2.2_MS0.1 <- method2(PR2.2_MS0.1, MS_TEST)$Average_Accuracy
+M2_PR2.2_MS0.2 <- method2(PR2.2_MS0.2, MS_TEST)$Average_Accuracy
+M2_PR2.2_MS0.3 <- method2(PR2.2_MS0.3, MS_TEST)$Average_Accuracy
+M2_PR2.2_MS0.4 <- method2(PR2.2_MS0.4, MS_TEST)$Average_Accuracy
+M2_PR2.2_MS0.5 <- method2(PR2.2_MS0.5, MS_TEST)$Average_Accuracy
+# WS
+M2_PR2.2_WS0.01 <- method2(PR2.2_WS0.01, WS_TEST)$Average_Accuracy
+M2_PR2.2_WS0.05 <- method2(PR2.2_WS0.05, WS_TEST)$Average_Accuracy
+M2_PR2.2_WS0.1 <- method2(PR2.2_WS0.1, WS_TEST)$Average_Accuracy
+M2_PR2.2_WS0.2 <- method2(PR2.2_WS0.2, WS_TEST)$Average_Accuracy
+M2_PR2.2_WS0.3 <- method2(PR2.2_WS0.3, WS_TEST)$Average_Accuracy
+M2_PR2.2_WS0.4 <- method2(PR2.2_WS0.4, WS_TEST)$Average_Accuracy
+M2_PR2.2_WS0.5 <- method2(PR2.2_WS0.5, WS_TEST)$Average_Accuracy
+# MD
+M2_PR2.2_MD0.01 <- method2(PR2.2_MD0.01, MD_TEST)$Average_Accuracy
+M2_PR2.2_MD0.05 <- method2(PR2.2_MD0.05, MD_TEST)$Average_Accuracy
+M2_PR2.2_MD0.1 <- method2(PR2.2_MD0.1, MD_TEST)$Average_Accuracy
+M2_PR2.2_MD0.2 <- method2(PR2.2_MD0.2, MD_TEST)$Average_Accuracy
+M2_PR2.2_MD0.3 <- method2(PR2.2_MD0.3, MD_TEST)$Average_Accuracy
+M2_PR2.2_MD0.4 <- method2(PR2.2_MD0.4, MD_TEST)$Average_Accuracy
+M2_PR2.2_MD0.5 <- method2(PR2.2_MD0.5, MD_TEST)$Average_Accuracy
+# WD
+M2_PR2.2_WD0.01 <- method2(PR2.2_WD0.01, WD_TEST)$Average_Accuracy
+M2_PR2.2_WD0.05 <- method2(PR2.2_WD0.05, WD_TEST)$Average_Accuracy
+M2_PR2.2_WD0.1 <- method2(PR2.2_WD0.1, WD_TEST)$Average_Accuracy
+M2_PR2.2_WD0.2 <- method2(PR2.2_WD0.2, WD_TEST)$Average_Accuracy
+M2_PR2.2_WD0.3 <- method2(PR2.2_WD0.3, WD_TEST)$Average_Accuracy
+M2_PR2.2_WD0.4 <- method2(PR2.2_WD0.4, WD_TEST)$Average_Accuracy
+M2_PR2.2_WD0.5 <- method2(PR2.2_WD0.5, WD_TEST)$Average_Accuracy
+# XD
+M2_PR2.2_XD0.01 <- method2(PR2.2_XD0.01, XD_TEST)$Average_Accuracy
+M2_PR2.2_XD0.05 <- method2(PR2.2_XD0.05, XD_TEST)$Average_Accuracy
+M2_PR2.2_XD0.1 <- method2(PR2.2_XD0.1, XD_TEST)$Average_Accuracy
+M2_PR2.2_XD0.2 <- method2(PR2.2_XD0.2, XD_TEST)$Average_Accuracy
+M2_PR2.2_XD0.3 <- method2(PR2.2_XD0.3, XD_TEST)$Average_Accuracy
+M2_PR2.2_XD0.4 <- method2(PR2.2_XD0.4, XD_TEST)$Average_Accuracy
+M2_PR2.2_XD0.5 <- method2(PR2.2_XD0.5, XD_TEST)$Average_Accuracy
+
+```
+```{r full run PR3.2 #METHOD2}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+M2_PR3.2_MS0.5 <- method2(PR3.2_MS0.5, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS1 <- method2(PR3.2_MS1, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS1.5 <- method2(PR3.2_MS1.5, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS2 <- method2(PR3.2_MS2, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS2.5 <- method2(PR3.2_MS2.5, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS3 <- method2(PR3.2_MS3, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS3.5 <- method2(PR3.2_MS3.5, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS4 <- method2(PR3.2_MS4, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS4.5 <- method2(PR3.2_MS4.5, MS_TEST)$Average_Accuracy
+M2_PR3.2_MS5 <- method2(PR3.2_MS5, MS_TEST)$Average_Accuracy
+# WS
+M2_PR3.2_WS0.5 <- method2(PR3.2_WS0.5, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS1 <- method2(PR3.2_WS1, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS1.5 <- method2(PR3.2_WS1.5, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS2 <- method2(PR3.2_WS2, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS2.5 <- method2(PR3.2_WS2.5, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS3 <- method2(PR3.2_WS3, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS3.5 <- method2(PR3.2_WS3.5, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS4 <- method2(PR3.2_WS4, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS4.5 <- method2(PR3.2_WS4.5, WS_TEST)$Average_Accuracy
+M2_PR3.2_WS5 <- method2(PR3.2_WS5, WS_TEST)$Average_Accuracy
+# MD
+M2_PR3.2_MD0.5 <- method2(PR3.2_MD0.5, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD1 <- method2(PR3.2_MD1, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD1.5 <- method2(PR3.2_MD1.5, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD2 <- method2(PR3.2_MD2, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD2.5 <- method2(PR3.2_MD2.5, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD3 <- method2(PR3.2_MD3, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD3.5 <- method2(PR3.2_MD3.5, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD4 <- method2(PR3.2_MD4, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD4.5 <- method2(PR3.2_MD4.5, MD_TEST)$Average_Accuracy
+M2_PR3.2_MD5 <- method2(PR3.2_MD5, MD_TEST)$Average_Accuracy
+# WD
+M2_PR3.2_WD0.5 <- method2(PR3.2_WD0.5, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD1 <- method2(PR3.2_WD1, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD1.5 <- method2(PR3.2_WD1.5, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD2 <- method2(PR3.2_WD2, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD2.5 <- method2(PR3.2_WD2.5, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD3 <- method2(PR3.2_WD3, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD3.5 <- method2(PR3.2_WD3.5, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD4 <- method2(PR3.2_WD4, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD4.5 <- method2(PR3.2_WD4.5, WD_TEST)$Average_Accuracy
+M2_PR3.2_WD5 <- method2(PR3.2_WD5, WD_TEST)$Average_Accuracy
+# XD
+M2_PR3.2_XD0.5 <- method2(PR3.2_XD0.5, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD1 <- method2(PR3.2_XD1, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD1.5 <- method2(PR3.2_XD1.5, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD2 <- method2(PR3.2_XD2, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD2.5 <- method2(PR3.2_XD2.5, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD3 <- method2(PR3.2_XD3, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD3.5 <- method2(PR3.2_XD3.5, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD4 <- method2(PR3.2_XD4, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD4.5 <- method2(PR3.2_XD4.5, XD_TEST)$Average_Accuracy
+M2_PR3.2_XD5 <- method2(PR3.2_XD5, XD_TEST)$Average_Accuracy
+```
+```{r full run PR3.3 #METHOD2}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+M2_PR3.3_MS0.5 <- method2(PR3.3_MS0.5, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS1 <- method2(PR3.3_MS1, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS1.5 <- method2(PR3.3_MS1.5, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS2 <- method2(PR3.3_MS2, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS2.5 <- method2(PR3.3_MS2.5, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS3 <- method2(PR3.3_MS3, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS3.5 <- method2(PR3.3_MS3.5, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS4 <- method2(PR3.3_MS4, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS4.5 <- method2(PR3.3_MS4.5, MS_TEST)$Average_Accuracy
+M2_PR3.3_MS5 <- method2(PR3.3_MS5, MS_TEST)$Average_Accuracy
+# WS
+M2_PR3.3_WS0.5 <- method2(PR3.3_WS0.5, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS1 <- method2(PR3.3_WS1, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS1.5 <- method2(PR3.3_WS1.5, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS2 <- method2(PR3.3_WS2, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS2.5 <- method2(PR3.3_WS2.5, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS3 <- method2(PR3.3_WS3, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS3.5 <- method2(PR3.3_WS3.5, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS4 <- method2(PR3.3_WS4, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS4.5 <- method2(PR3.3_WS4.5, WS_TEST)$Average_Accuracy
+M2_PR3.3_WS5 <- method2(PR3.3_WS5, WS_TEST)$Average_Accuracy
+# MD
+M2_PR3.3_MD0.5 <- method2(PR3.3_MD0.5, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD1 <- method2(PR3.3_MD1, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD1.5 <- method2(PR3.3_MD1.5, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD2 <- method2(PR3.3_MD2, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD2.5 <- method2(PR3.3_MD2.5, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD3 <- method2(PR3.3_MD3, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD3.5 <- method2(PR3.3_MD3.5, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD4 <- method2(PR3.3_MD4, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD4.5 <- method2(PR3.3_MD4.5, MD_TEST)$Average_Accuracy
+M2_PR3.3_MD5 <- method2(PR3.3_MD5, MD_TEST)$Average_Accuracy
+# WD
+M2_PR3.3_WD0.5 <- method2(PR3.3_WD0.5, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD1 <- method2(PR3.3_WD1, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD1.5 <- method2(PR3.3_WD1.5, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD2 <- method2(PR3.3_WD2, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD2.5 <- method2(PR3.3_WD2.5, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD3 <- method2(PR3.3_WD3, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD3.5 <- method2(PR3.3_WD3.5, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD4 <- method2(PR3.3_WD4, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD4.5 <- method2(PR3.3_WD4.5, WD_TEST)$Average_Accuracy
+M2_PR3.3_WD5 <- method2(PR3.3_WD5, WD_TEST)$Average_Accuracy
+# XD
+M2_PR3.3_XD0.5 <- method2(PR3.3_XD0.5, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD1 <- method2(PR3.3_XD1, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD1.5 <- method2(PR3.3_XD1.5, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD2 <- method2(PR3.3_XD2, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD2.5 <- method2(PR3.3_XD2.5, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD3 <- method2(PR3.3_XD3, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD3.5 <- method2(PR3.3_XD3.5, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD4 <- method2(PR3.3_XD4, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD4.5 <- method2(PR3.3_XD4.5, XD_TEST)$Average_Accuracy
+M2_PR3.3_XD5 <- method2(PR3.3_XD5, XD_TEST)$Average_Accuracy
+```
+```{r full run PR5 #METHOD2}
+#t= 1.5,2,2.5,3,3.5,4,4.5,5
+# MS, p=0.5
+M2_PR5_MS1.5 <- method2(PR5_MS1.5, MS_TEST)$Average_Accuracy
+M2_PR5_MS2 <- method2(PR5_MS2, MS_TEST)$Average_Accuracy
+M2_PR5_MS2.5 <- method2(PR5_MS2.5, MS_TEST)$Average_Accuracy
+M2_PR5_MS3 <- method2(PR5_MS3, MS_TEST)$Average_Accuracy
+M2_PR5_MS3.5 <- method2(PR5_MS3.5, MS_TEST)$Average_Accuracy
+M2_PR5_MS4 <- method2(PR5_MS4, MS_TEST)$Average_Accuracy
+M2_PR5_MS4.5 <- method2(PR5_MS4.5, MS_TEST)$Average_Accuracy
+M2_PR5_MS5 <- method2(PR5_MS5, MS_TEST)$Average_Accuracy
+# WS, p=0.5
+M2_PR5_WS1.5 <- method2(PR5_WS1.5, WS_TEST)$Average_Accuracy
+M2_PR5_WS2 <- method2(PR5_WS2, WS_TEST)$Average_Accuracy
+M2_PR5_WS2.5 <- method2(PR5_WS2.5, WS_TEST)$Average_Accuracy
+M2_PR5_WS3 <- method2(PR5_WS3, WS_TEST)$Average_Accuracy
+M2_PR5_WS3.5 <- method2(PR5_WS3.5, WS_TEST)$Average_Accuracy
+M2_PR5_WS4 <- method2(PR5_WS4, WS_TEST)$Average_Accuracy
+M2_PR5_WS4.5 <- method2(PR5_WS4.5, WS_TEST)$Average_Accuracy
+M2_PR5_WS5 <- method2(PR5_WS5, WS_TEST)$Average_Accuracy
+# MD, p=0.5
+M2_PR5_MD1.5 <- method2(PR5_MD1.5, MD_TEST)$Average_Accuracy
+M2_PR5_MD2 <- method2(PR5_MD2, MD_TEST)$Average_Accuracy
+M2_PR5_MD2.5 <- method2(PR5_MD2.5, MD_TEST)$Average_Accuracy
+M2_PR5_MD3 <- method2(PR5_MD3, MD_TEST)$Average_Accuracy
+M2_PR5_MD3.5 <- method2(PR5_MD3.5, MD_TEST)$Average_Accuracy
+M2_PR5_MD4 <- method2(PR5_MD4, MD_TEST)$Average_Accuracy
+M2_PR5_MD4.5 <- method2(PR5_MD4.5, MD_TEST)$Average_Accuracy
+M2_PR5_MD5 <- method2(PR5_MD5, MD_TEST)$Average_Accuracy
+# WD, p=3
+M2_PR5_WD1.5 <- method2(PR5_WD1.5, WD_TEST)$Average_Accuracy
+M2_PR5_WD2 <- method2(PR5_WD2, WD_TEST)$Average_Accuracy
+M2_PR5_WD2.5 <- method2(PR5_WD2.5, WD_TEST)$Average_Accuracy
+M2_PR5_WD3 <- method2(PR5_WD3, WD_TEST)$Average_Accuracy
+M2_PR5_WD3.5 <- method2(PR5_WD3.5, WD_TEST)$Average_Accuracy
+M2_PR5_WD4 <- method2(PR5_WD4, WD_TEST)$Average_Accuracy
+M2_PR5_WD4.5 <- method2(PR5_WD4.5, WD_TEST)$Average_Accuracy
+M2_PR5_WD5 <- method2(PR5_WD5, WD_TEST)$Average_Accuracy
+# XD, p=0.5
+M2_PR5_XD1.5 <- method2(PR5_XD1.5, XD_TEST)$Average_Accuracy
+M2_PR5_XD2 <- method2(PR5_XD2, XD_TEST)$Average_Accuracy
+M2_PR5_XD2.5 <- method2(PR5_XD2.5, XD_TEST)$Average_Accuracy
+M2_PR5_XD3 <- method2(PR5_XD3, XD_TEST)$Average_Accuracy
+M2_PR5_XD3.5 <- method2(PR5_XD3.5, XD_TEST)$Average_Accuracy
+M2_PR5_XD4 <- method2(PR5_XD4, XD_TEST)$Average_Accuracy
+M2_PR5_XD4.5 <- method2(PR5_XD4.5, XD_TEST)$Average_Accuracy
+M2_PR5_XD5 <- method2(PR5_XD5, XD_TEST)$Average_Accuracy
+```
+```{r reference #METHOD2}
+M2_BT_MS<- method2(BT_MS, MS_TEST, pr_column = "Strength")$Average_Accuracy
+M2_ELO_MS<- method2(ELO_MS, MS_TEST, pr_column = "Rating")$Average_Accuracy
+
+M2_BT_WS<- method2(BT_WS, WS_TEST, pr_column = "Strength")$Average_Accuracy
+M2_ELO_WS<- method2(ELO_WS, WS_TEST, pr_column = "Rating")$Average_Accuracy
+
+M2_BT_MD<- method2(BT_MD, MD_TEST, pr_column = "Strength")$Average_Accuracy
+M2_ELO_MD<- method2(ELO_WD, WD_TEST, pr_column = "Rating")$Average_Accuracy
+
+M2_BT_WD<- method2(BT_WD, WD_TEST, pr_column = "Strength")$Average_Accuracy
+M2_ELO_WD<- method2(ELO_WD, WD_TEST, pr_column = "Rating")$Average_Accuracy
+
+M2_BT_XD<- method2(BT_XD, XD_TEST, pr_column = "Strength")$Average_Accuracy
+M2_ELO_XD<- method2(ELO_XD, XD_TEST, pr_column = "Rating")$Average_Accuracy
+```
+## Method 3
+```{r all others #METHOD3}
+# MS
+M3_PR1_MS <- method3(PR1_MS, MS_TEST)$Average_Accuracy
+M3_PR2.1_MS <- method3(PR2.1_MS, MS_TEST)$Average_Accuracy
+M3_PR2.3_MS <- method3(PR2.3_MS, MS_TEST)$Average_Accuracy
+M3_PR3.1_MS <- method3(PR3.1_MS, MS_TEST)$Average_Accuracy
+M3_PR4_MS <- method3(PR4_MS, MS_TEST)$Average_Accuracy
+# WS
+M3_PR1_WS <- method3(PR1_WS, WS_TEST)$Average_Accuracy
+M3_PR2.1_WS <- method3(PR2.1_WS, WS_TEST)$Average_Accuracy
+M3_PR2.3_WS <- method3(PR2.3_WS, WS_TEST)$Average_Accuracy
+M3_PR3.1_WS <- method3(PR3.1_WS, WS_TEST)$Average_Accuracy
+M3_PR4_WS <- method3(PR4_WS, WS_TEST)$Average_Accuracy
+# MD
+M3_PR1_MD <- method3(PR1_MD, MD_TEST)$Average_Accuracy
+M3_PR2.1_MD <- method3(PR2.1_MD, MD_TEST)$Average_Accuracy
+M3_PR2.3_MD <- method3(PR2.3_MD, MD_TEST)$Average_Accuracy
+M3_PR3.1_MD <- method3(PR3.1_MD, MD_TEST)$Average_Accuracy
+M3_PR4_MD <- method3(PR4_MD, MD_TEST)$Average_Accuracy
+# WD
+M3_PR1_WD <- method3(PR1_WD, WD_TEST)$Average_Accuracy
+M3_PR2.1_WD <- method3(PR2.1_WD, WD_TEST)$Average_Accuracy
+M3_PR2.3_WD <- method3(PR2.3_WD, WD_TEST)$Average_Accuracy
+M3_PR3.1_WD <- method3(PR3.1_WD, WD_TEST)$Average_Accuracy
+M3_PR4_WD <- method3(PR4_WD, WD_TEST)$Average_Accuracy
+# XD
+M3_PR1_XD <- method3(PR1_XD, XD_TEST)$Average_Accuracy
+M3_PR2.1_XD <- method3(PR2.1_XD, XD_TEST)$Average_Accuracy
+M3_PR2.3_XD <- method3(PR2.3_XD, XD_TEST)$Average_Accuracy
+M3_PR3.1_XD <- method3(PR3.1_XD, XD_TEST)$Average_Accuracy
+M3_PR4_XD <- method3(PR4_XD, XD_TEST)$Average_Accuracy
+```
+```{r full run PR2.2 #METHOD3}
+#p= 0.01,0.05,0.1,0.2,0.3,0.4,0.5
+# MS
+M3_PR2.2_MS0.01 <- method3(PR2.2_MS0.01, MS_TEST)$Average_Accuracy
+M3_PR2.2_MS0.05 <- method3(PR2.2_MS0.05, MS_TEST)$Average_Accuracy
+M3_PR2.2_MS0.1 <- method3(PR2.2_MS0.1, MS_TEST)$Average_Accuracy
+M3_PR2.2_MS0.2 <- method3(PR2.2_MS0.2, MS_TEST)$Average_Accuracy
+M3_PR2.2_MS0.3 <- method3(PR2.2_MS0.3, MS_TEST)$Average_Accuracy
+M3_PR2.2_MS0.4 <- method3(PR2.2_MS0.4, MS_TEST)$Average_Accuracy
+M3_PR2.2_MS0.5 <- method3(PR2.2_MS0.5, MS_TEST)$Average_Accuracy
+# WS
+M3_PR2.2_WS0.01 <- method3(PR2.2_WS0.01, WS_TEST)$Average_Accuracy
+M3_PR2.2_WS0.05 <- method3(PR2.2_WS0.05, WS_TEST)$Average_Accuracy
+M3_PR2.2_WS0.1 <- method3(PR2.2_WS0.1, WS_TEST)$Average_Accuracy
+M3_PR2.2_WS0.2 <- method3(PR2.2_WS0.2, WS_TEST)$Average_Accuracy
+M3_PR2.2_WS0.3 <- method3(PR2.2_WS0.3, WS_TEST)$Average_Accuracy
+M3_PR2.2_WS0.4 <- method3(PR2.2_WS0.4, WS_TEST)$Average_Accuracy
+M3_PR2.2_WS0.5 <- method3(PR2.2_WS0.5, WS_TEST)$Average_Accuracy
+# MD
+M3_PR2.2_MD0.01 <- method3(PR2.2_MD0.01, MD_TEST)$Average_Accuracy
+M3_PR2.2_MD0.05 <- method3(PR2.2_MD0.05, MD_TEST)$Average_Accuracy
+M3_PR2.2_MD0.1 <- method3(PR2.2_MD0.1, MD_TEST)$Average_Accuracy
+M3_PR2.2_MD0.2 <- method3(PR2.2_MD0.2, MD_TEST)$Average_Accuracy
+M3_PR2.2_MD0.3 <- method3(PR2.2_MD0.3, MD_TEST)$Average_Accuracy
+M3_PR2.2_MD0.4 <- method3(PR2.2_MD0.4, MD_TEST)$Average_Accuracy
+M3_PR2.2_MD0.5 <- method3(PR2.2_MD0.5, MD_TEST)$Average_Accuracy
+# WD
+M3_PR2.2_WD0.01 <- method3(PR2.2_WD0.01, WD_TEST)$Average_Accuracy
+M3_PR2.2_WD0.05 <- method3(PR2.2_WD0.05, WD_TEST)$Average_Accuracy
+M3_PR2.2_WD0.1 <- method3(PR2.2_WD0.1, WD_TEST)$Average_Accuracy
+M3_PR2.2_WD0.2 <- method3(PR2.2_WD0.2, WD_TEST)$Average_Accuracy
+M3_PR2.2_WD0.3 <- method3(PR2.2_WD0.3, WD_TEST)$Average_Accuracy
+M3_PR2.2_WD0.4 <- method3(PR2.2_WD0.4, WD_TEST)$Average_Accuracy
+M3_PR2.2_WD0.5 <- method3(PR2.2_WD0.5, WD_TEST)$Average_Accuracy
+# XD
+M3_PR2.2_XD0.01 <- method3(PR2.2_XD0.01, XD_TEST)$Average_Accuracy
+M3_PR2.2_XD0.05 <- method3(PR2.2_XD0.05, XD_TEST)$Average_Accuracy
+M3_PR2.2_XD0.1 <- method3(PR2.2_XD0.1, XD_TEST)$Average_Accuracy
+M3_PR2.2_XD0.2 <- method3(PR2.2_XD0.2, XD_TEST)$Average_Accuracy
+M3_PR2.2_XD0.3 <- method3(PR2.2_XD0.3, XD_TEST)$Average_Accuracy
+M3_PR2.2_XD0.4 <- method3(PR2.2_XD0.4, XD_TEST)$Average_Accuracy
+M3_PR2.2_XD0.5 <- method3(PR2.2_XD0.5, XD_TEST)$Average_Accuracy
+
+```
+```{r full run PR3.2 #METHOD3}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+M3_PR3.2_MS0.5 <- method3(PR3.2_MS0.5, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS1 <- method3(PR3.2_MS1, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS1.5 <- method3(PR3.2_MS1.5, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS2 <- method3(PR3.2_MS2, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS2.5 <- method3(PR3.2_MS2.5, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS3 <- method3(PR3.2_MS3, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS3.5 <- method3(PR3.2_MS3.5, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS4 <- method3(PR3.2_MS4, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS4.5 <- method3(PR3.2_MS4.5, MS_TEST)$Average_Accuracy
+M3_PR3.2_MS5 <- method3(PR3.2_MS5, MS_TEST)$Average_Accuracy
+# WS
+M3_PR3.2_WS0.5 <- method3(PR3.2_WS0.5, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS1 <- method3(PR3.2_WS1, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS1.5 <- method3(PR3.2_WS1.5, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS2 <- method3(PR3.2_WS2, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS2.5 <- method3(PR3.2_WS2.5, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS3 <- method3(PR3.2_WS3, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS3.5 <- method3(PR3.2_WS3.5, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS4 <- method3(PR3.2_WS4, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS4.5 <- method3(PR3.2_WS4.5, WS_TEST)$Average_Accuracy
+M3_PR3.2_WS5 <- method3(PR3.2_WS5, WS_TEST)$Average_Accuracy
+# MD
+M3_PR3.2_MD0.5 <- method3(PR3.2_MD0.5, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD1 <- method3(PR3.2_MD1, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD1.5 <- method3(PR3.2_MD1.5, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD2 <- method3(PR3.2_MD2, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD2.5 <- method3(PR3.2_MD2.5, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD3 <- method3(PR3.2_MD3, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD3.5 <- method3(PR3.2_MD3.5, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD4 <- method3(PR3.2_MD4, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD4.5 <- method3(PR3.2_MD4.5, MD_TEST)$Average_Accuracy
+M3_PR3.2_MD5 <- method3(PR3.2_MD5, MD_TEST)$Average_Accuracy
+# WD
+M3_PR3.2_WD0.5 <- method3(PR3.2_WD0.5, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD1 <- method3(PR3.2_WD1, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD1.5 <- method3(PR3.2_WD1.5, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD2 <- method3(PR3.2_WD2, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD2.5 <- method3(PR3.2_WD2.5, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD3 <- method3(PR3.2_WD3, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD3.5 <- method3(PR3.2_WD3.5, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD4 <- method3(PR3.2_WD4, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD4.5 <- method3(PR3.2_WD4.5, WD_TEST)$Average_Accuracy
+M3_PR3.2_WD5 <- method3(PR3.2_WD5, WD_TEST)$Average_Accuracy
+# XD
+M3_PR3.2_XD0.5 <- method3(PR3.2_XD0.5, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD1 <- method3(PR3.2_XD1, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD1.5 <- method3(PR3.2_XD1.5, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD2 <- method3(PR3.2_XD2, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD2.5 <- method3(PR3.2_XD2.5, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD3 <- method3(PR3.2_XD3, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD3.5 <- method3(PR3.2_XD3.5, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD4 <- method3(PR3.2_XD4, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD4.5 <- method3(PR3.2_XD4.5, XD_TEST)$Average_Accuracy
+M3_PR3.2_XD5 <- method3(PR3.2_XD5, XD_TEST)$Average_Accuracy
+```
+```{r full run PR3.3 #METHOD3}
+#p= 0.5,1,1.5,2,2.5,3,3.5,4,4.5,5
+# MS
+M3_PR3.3_MS0.5 <- method3(PR3.3_MS0.5, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS1 <- method3(PR3.3_MS1, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS1.5 <- method3(PR3.3_MS1.5, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS2 <- method3(PR3.3_MS2, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS2.5 <- method3(PR3.3_MS2.5, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS3 <- method3(PR3.3_MS3, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS3.5 <- method3(PR3.3_MS3.5, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS4 <- method3(PR3.3_MS4, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS4.5 <- method3(PR3.3_MS4.5, MS_TEST)$Average_Accuracy
+M3_PR3.3_MS5 <- method3(PR3.3_MS5, MS_TEST)$Average_Accuracy
+# WS
+M3_PR3.3_WS0.5 <- method3(PR3.3_WS0.5, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS1 <- method3(PR3.3_WS1, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS1.5 <- method3(PR3.3_WS1.5, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS2 <- method3(PR3.3_WS2, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS2.5 <- method3(PR3.3_WS2.5, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS3 <- method3(PR3.3_WS3, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS3.5 <- method3(PR3.3_WS3.5, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS4 <- method3(PR3.3_WS4, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS4.5 <- method3(PR3.3_WS4.5, WS_TEST)$Average_Accuracy
+M3_PR3.3_WS5 <- method3(PR3.3_WS5, WS_TEST)$Average_Accuracy
+# MD
+M3_PR3.3_MD0.5 <- method3(PR3.3_MD0.5, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD1 <- method3(PR3.3_MD1, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD1.5 <- method3(PR3.3_MD1.5, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD2 <- method3(PR3.3_MD2, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD2.5 <- method3(PR3.3_MD2.5, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD3 <- method3(PR3.3_MD3, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD3.5 <- method3(PR3.3_MD3.5, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD4 <- method3(PR3.3_MD4, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD4.5 <- method3(PR3.3_MD4.5, MD_TEST)$Average_Accuracy
+M3_PR3.3_MD5 <- method3(PR3.3_MD5, MD_TEST)$Average_Accuracy
+# WD
+M3_PR3.3_WD0.5 <- method3(PR3.3_WD0.5, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD1 <- method3(PR3.3_WD1, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD1.5 <- method3(PR3.3_WD1.5, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD2 <- method3(PR3.3_WD2, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD2.5 <- method3(PR3.3_WD2.5, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD3 <- method3(PR3.3_WD3, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD3.5 <- method3(PR3.3_WD3.5, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD4 <- method3(PR3.3_WD4, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD4.5 <- method3(PR3.3_WD4.5, WD_TEST)$Average_Accuracy
+M3_PR3.3_WD5 <- method3(PR3.3_WD5, WD_TEST)$Average_Accuracy
+# XD
+M3_PR3.3_XD0.5 <- method3(PR3.3_XD0.5, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD1 <- method3(PR3.3_XD1, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD1.5 <- method3(PR3.3_XD1.5, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD2 <- method3(PR3.3_XD2, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD2.5 <- method3(PR3.3_XD2.5, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD3 <- method3(PR3.3_XD3, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD3.5 <- method3(PR3.3_XD3.5, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD4 <- method3(PR3.3_XD4, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD4.5 <- method3(PR3.3_XD4.5, XD_TEST)$Average_Accuracy
+M3_PR3.3_XD5 <- method3(PR3.3_XD5, XD_TEST)$Average_Accuracy
+```
+```{r full run PR5 #METHOD3}
+#t= 1.5,2,2.5,3,3.5,4,4.5,5
+# MS, p=0.5
+M3_PR5_MS1.5 <- method3(PR5_MS1.5, MS_TEST)$Average_Accuracy
+M3_PR5_MS2 <- method3(PR5_MS2, MS_TEST)$Average_Accuracy
+M3_PR5_MS2.5 <- method3(PR5_MS2.5, MS_TEST)$Average_Accuracy
+M3_PR5_MS3 <- method3(PR5_MS3, MS_TEST)$Average_Accuracy
+M3_PR5_MS3.5 <- method3(PR5_MS3.5, MS_TEST)$Average_Accuracy
+M3_PR5_MS4 <- method3(PR5_MS4, MS_TEST)$Average_Accuracy
+M3_PR5_MS4.5 <- method3(PR5_MS4.5, MS_TEST)$Average_Accuracy
+M3_PR5_MS5 <- method3(PR5_MS5, MS_TEST)$Average_Accuracy
+# WS, p=0.5
+M3_PR5_WS1.5 <- method3(PR5_WS1.5, WS_TEST)$Average_Accuracy
+M3_PR5_WS2 <- method3(PR5_WS2, WS_TEST)$Average_Accuracy
+M3_PR5_WS2.5 <- method3(PR5_WS2.5, WS_TEST)$Average_Accuracy
+M3_PR5_WS3 <- method3(PR5_WS3, WS_TEST)$Average_Accuracy
+M3_PR5_WS3.5 <- method3(PR5_WS3.5, WS_TEST)$Average_Accuracy
+M3_PR5_WS4 <- method3(PR5_WS4, WS_TEST)$Average_Accuracy
+M3_PR5_WS4.5 <- method3(PR5_WS4.5, WS_TEST)$Average_Accuracy
+M3_PR5_WS5 <- method3(PR5_WS5, WS_TEST)$Average_Accuracy
+# MD, p=0.5
+M3_PR5_MD1.5 <- method3(PR5_MD1.5, MD_TEST)$Average_Accuracy
+M3_PR5_MD2 <- method3(PR5_MD2, MD_TEST)$Average_Accuracy
+M3_PR5_MD2.5 <- method3(PR5_MD2.5, MD_TEST)$Average_Accuracy
+M3_PR5_MD3 <- method3(PR5_MD3, MD_TEST)$Average_Accuracy
+M3_PR5_MD3.5 <- method3(PR5_MD3.5, MD_TEST)$Average_Accuracy
+M3_PR5_MD4 <- method3(PR5_MD4, MD_TEST)$Average_Accuracy
+M3_PR5_MD4.5 <- method3(PR5_MD4.5, MD_TEST)$Average_Accuracy
+M3_PR5_MD5 <- method3(PR5_MD5, MD_TEST)$Average_Accuracy
+# WD, p=3
+M3_PR5_WD1.5 <- method3(PR5_WD1.5, WD_TEST)$Average_Accuracy
+M3_PR5_WD2 <- method3(PR5_WD2, WD_TEST)$Average_Accuracy
+M3_PR5_WD2.5 <- method3(PR5_WD2.5, WD_TEST)$Average_Accuracy
+M3_PR5_WD3 <- method3(PR5_WD3, WD_TEST)$Average_Accuracy
+M3_PR5_WD3.5 <- method3(PR5_WD3.5, WD_TEST)$Average_Accuracy
+M3_PR5_WD4 <- method3(PR5_WD4, WD_TEST)$Average_Accuracy
+M3_PR5_WD4.5 <- method3(PR5_WD4.5, WD_TEST)$Average_Accuracy
+M3_PR5_WD5 <- method3(PR5_WD5, WD_TEST)$Average_Accuracy
+# XD, p=0.5
+M3_PR5_XD1.5 <- method3(PR5_XD1.5, XD_TEST)$Average_Accuracy
+M3_PR5_XD2 <- method3(PR5_XD2, XD_TEST)$Average_Accuracy
+M3_PR5_XD2.5 <- method3(PR5_XD2.5, XD_TEST)$Average_Accuracy
+M3_PR5_XD3 <- method3(PR5_XD3, XD_TEST)$Average_Accuracy
+M3_PR5_XD3.5 <- method3(PR5_XD3.5, XD_TEST)$Average_Accuracy
+M3_PR5_XD4 <- method3(PR5_XD4, XD_TEST)$Average_Accuracy
+M3_PR5_XD4.5 <- method3(PR5_XD4.5, XD_TEST)$Average_Accuracy
+M3_PR5_XD5 <- method3(PR5_XD5, XD_TEST)$Average_Accuracy
+```
+```{r reference #METHOD3}
+M3_BT_MS<- method3(BT_MS, MS_TEST, pr_column = "Strength")$Average_Accuracy
+M3_ELO_MS<- method3(ELO_MS, MS_TEST, pr_column = "Rating")$Average_Accuracy
+
+M3_BT_WS<- method3(BT_WS, WS_TEST, pr_column = "Strength")$Average_Accuracy
+M3_ELO_WS<- method3(ELO_WS, WS_TEST, pr_column = "Rating")$Average_Accuracy
+
+M3_BT_MD<- method3(BT_MD, MD_TEST, pr_column = "Strength")$Average_Accuracy
+M3_ELO_MD<- method3(ELO_WD, WD_TEST, pr_column = "Rating")$Average_Accuracy
+
+M3_BT_WD<- method3(BT_WD, WD_TEST, pr_column = "Strength")$Average_Accuracy
+M3_ELO_WD<- method3(ELO_WD, WD_TEST, pr_column = "Rating")$Average_Accuracy
+
+M3_BT_XD<- method3(BT_XD, XD_TEST, pr_column = "Strength")$Average_Accuracy
+M3_ELO_XD<- method3(ELO_XD, XD_TEST, pr_column = "Rating")$Average_Accuracy
+```
+
+# Save to Excel
+```{r save}
+models <- c(  "PR1",  "PR2.1",  "PR2.3",  "PR3.1",  "PR4",
+  "PR2.2 (p=0.01)",  "PR2.2 (p=0.05)",  "PR2.2 (p=0.1)",  "PR2.2 (p=0.2)",
+  "PR2.2 (p=0.3)",  "PR2.2 (p=0.4)",  "PR2.2 (p=0.5)",  "PR3.2 (p=0.5)",  
+"PR3.2 (p=1.0)",  "PR3.2 (p=1.5)",  "PR3.2 (p=2.0)",  "PR3.2 (p=2.5)",
+  "PR3.2 (p=3.0)",  "PR3.3 (p=0.5)",  "PR3.3 (p=1.0)",  "PR3.3 (p=1.5)",
+  "PR3.3 (p=2.0)",  "PR3.3 (p=2.5)",  "PR3.3 (p=3.0)",  "PR5 (t=1.5)",  
+"PR5 (t=2.0)",  "PR5 (t=2.5)",  "PR5 (t=3.0)",  "PR5 (t=3.5)",  
+"PR5 (t=4.0)",  "PR5 (t=4.5)",  "PR5 (t=5.0)",  "BT",  "ELO")
+# METHOD1
+# MS
+M1_MS<- c(M1_PR1_MS,M1_PR2.1_MS,M1_PR2.3_MS,M1_PR3.1_MS,M1_PR4_MS,M1_PR2.2_MS0.01,
+M1_PR2.2_MS0.05,M1_PR2.2_MS0.1,M1_PR2.2_MS0.2,M1_PR2.2_MS0.3,M1_PR2.2_MS0.4,
+M1_PR2.2_MS0.5,M1_PR3.2_MS0.5,M1_PR3.2_MS1,M1_PR3.2_MS1.5,M1_PR3.2_MS2,
+M1_PR3.2_MS2.5,M1_PR3.2_MS3,M1_PR3.3_MS0.5,M1_PR3.3_MS1,M1_PR3.3_MS1.5,
+M1_PR3.3_MS2,M1_PR3.3_MS2.5,M1_PR3.3_MS3,M1_PR5_MS1.5,M1_PR5_MS2,M1_PR5_MS2.5,
+M1_PR5_MS3,M1_PR5_MS3.5,M1_PR5_MS4,M1_PR5_MS4.5,M1_PR5_MS5,M1_BT_MS,M1_ELO_MS)
+# WS
+M1_WS<- c(M1_PR1_WS,M1_PR2.1_WS,M1_PR2.3_WS,M1_PR3.1_WS,M1_PR4_WS,M1_PR2.2_WS0.01,
+M1_PR2.2_WS0.05,M1_PR2.2_WS0.1,M1_PR2.2_WS0.2,M1_PR2.2_WS0.3,M1_PR2.2_WS0.4,
+M1_PR2.2_WS0.5,M1_PR3.2_WS0.5,M1_PR3.2_WS1,M1_PR3.2_WS1.5,M1_PR3.2_WS2,
+M1_PR3.2_WS2.5,M1_PR3.2_WS3,M1_PR3.3_WS0.5,M1_PR3.3_WS1,M1_PR3.3_WS1.5,
+M1_PR3.3_WS2,M1_PR3.3_WS2.5,M1_PR3.3_WS3,M1_PR5_WS1.5,M1_PR5_WS2,M1_PR5_WS2.5,
+M1_PR5_WS3,M1_PR5_WS3.5,M1_PR5_WS4,M1_PR5_WS4.5,M1_PR5_WS5,M1_BT_WS,M1_ELO_WS)
+# MD
+M1_MD<- c(M1_PR1_MD,M1_PR2.1_MD,M1_PR2.3_MD,M1_PR3.1_MD,M1_PR4_MD,M1_PR2.2_MD0.01,
+M1_PR2.2_MD0.05,M1_PR2.2_MD0.1,M1_PR2.2_MD0.2,M1_PR2.2_MD0.3,M1_PR2.2_MD0.4,
+M1_PR2.2_MD0.5,M1_PR3.2_MD0.5,M1_PR3.2_MD1,M1_PR3.2_MD1.5,M1_PR3.2_MD2,
+M1_PR3.2_MD2.5,M1_PR3.2_MD3,M1_PR3.3_MD0.5,M1_PR3.3_MD1,M1_PR3.3_MD1.5,
+M1_PR3.3_MD2,M1_PR3.3_MD2.5,M1_PR3.3_MD3,M1_PR5_MD1.5,M1_PR5_MD2,M1_PR5_MD2.5,
+M1_PR5_MD3,M1_PR5_MD3.5,M1_PR5_MD4,M1_PR5_MD4.5,M1_PR5_MD5,M1_BT_MD,M1_ELO_MD)
+# WD
+M1_WD<- c(M1_PR1_WD,M1_PR2.1_WD,M1_PR2.3_WD,M1_PR3.1_WD,M1_PR4_WD,M1_PR2.2_WD0.01,
+M1_PR2.2_WD0.05,M1_PR2.2_WD0.1,M1_PR2.2_WD0.2,M1_PR2.2_WD0.3,M1_PR2.2_WD0.4,
+M1_PR2.2_WD0.5,M1_PR3.2_WD0.5,M1_PR3.2_WD1,M1_PR3.2_WD1.5,M1_PR3.2_WD2,
+M1_PR3.2_WD2.5,M1_PR3.2_WD3,M1_PR3.3_WD0.5,M1_PR3.3_WD1,M1_PR3.3_WD1.5,
+M1_PR3.3_WD2,M1_PR3.3_WD2.5,M1_PR3.3_WD3,M1_PR5_WD1.5,M1_PR5_WD2,M1_PR5_WD2.5,
+M1_PR5_WD3,M1_PR5_WD3.5,M1_PR5_WD4,M1_PR5_WD4.5,M1_PR5_WD5,M1_BT_WD,M1_ELO_WD)
+# XD
+M1_XD<- c(M1_PR1_XD,M1_PR2.1_XD,M1_PR2.3_XD,M1_PR3.1_XD,M1_PR4_XD,M1_PR2.2_XD0.01,
+M1_PR2.2_XD0.05,M1_PR2.2_XD0.1,M1_PR2.2_XD0.2,M1_PR2.2_XD0.3,M1_PR2.2_XD0.4,
+M1_PR2.2_XD0.5,M1_PR3.2_XD0.5,M1_PR3.2_XD1,M1_PR3.2_XD1.5,M1_PR3.2_XD2,
+M1_PR3.2_XD2.5,M1_PR3.2_XD3,M1_PR3.3_XD0.5,M1_PR3.3_XD1,M1_PR3.3_XD1.5,
+M1_PR3.3_XD2,M1_PR3.3_XD2.5,M1_PR3.3_XD3,M1_PR5_XD1.5,M1_PR5_XD2,M1_PR5_XD2.5,
+M1_PR5_XD3,M1_PR5_XD3.5,M1_PR5_XD4,M1_PR5_XD4.5,M1_PR5_XD5,M1_BT_XD,M1_ELO_XD)
+# METHOD2
+# MS
+M2_MS<- c(M2_PR1_MS,M2_PR2.1_MS,M2_PR2.3_MS,M2_PR3.1_MS,M2_PR4_MS,M2_PR2.2_MS0.01,
+M2_PR2.2_MS0.05,M2_PR2.2_MS0.1,M2_PR2.2_MS0.2,M2_PR2.2_MS0.3,M2_PR2.2_MS0.4,
+M2_PR2.2_MS0.5,M2_PR3.2_MS0.5,M2_PR3.2_MS1,M2_PR3.2_MS1.5,M2_PR3.2_MS2,
+M2_PR3.2_MS2.5,M2_PR3.2_MS3,M2_PR3.3_MS0.5,M2_PR3.3_MS1,M2_PR3.3_MS1.5,
+M2_PR3.3_MS2,M2_PR3.3_MS2.5,M2_PR3.3_MS3,M2_PR5_MS1.5,M2_PR5_MS2,M2_PR5_MS2.5,
+M2_PR5_MS3,M2_PR5_MS3.5,M2_PR5_MS4,M2_PR5_MS4.5,M2_PR5_MS5,M2_BT_MS,M2_ELO_MS)
+# WS
+M2_WS<- c(M2_PR1_WS,M2_PR2.1_WS,M2_PR2.3_WS,M2_PR3.1_WS,M2_PR4_WS,M2_PR2.2_WS0.01,
+M2_PR2.2_WS0.05,M2_PR2.2_WS0.1,M2_PR2.2_WS0.2,M2_PR2.2_WS0.3,M2_PR2.2_WS0.4,
+M2_PR2.2_WS0.5,M2_PR3.2_WS0.5,M2_PR3.2_WS1,M2_PR3.2_WS1.5,M2_PR3.2_WS2,
+M2_PR3.2_WS2.5,M2_PR3.2_WS3,M2_PR3.3_WS0.5,M2_PR3.3_WS1,M2_PR3.3_WS1.5,
+M2_PR3.3_WS2,M2_PR3.3_WS2.5,M2_PR3.3_WS3,M2_PR5_WS1.5,M2_PR5_WS2,M2_PR5_WS2.5,
+M2_PR5_WS3,M2_PR5_WS3.5,M2_PR5_WS4,M2_PR5_WS4.5,M2_PR5_WS5,M2_BT_WS,M2_ELO_WS)
+# MD
+M2_MD<- c(M2_PR1_MD,M2_PR2.1_MD,M2_PR2.3_MD,M2_PR3.1_MD,M2_PR4_MD,M2_PR2.2_MD0.01,
+M2_PR2.2_MD0.05,M2_PR2.2_MD0.1,M2_PR2.2_MD0.2,M2_PR2.2_MD0.3,M2_PR2.2_MD0.4,
+M2_PR2.2_MD0.5,M2_PR3.2_MD0.5,M2_PR3.2_MD1,M2_PR3.2_MD1.5,M2_PR3.2_MD2,
+M2_PR3.2_MD2.5,M2_PR3.2_MD3,M2_PR3.3_MD0.5,M2_PR3.3_MD1,M2_PR3.3_MD1.5,
+M2_PR3.3_MD2,M2_PR3.3_MD2.5,M2_PR3.3_MD3,M2_PR5_MD1.5,M2_PR5_MD2,M2_PR5_MD2.5,
+M2_PR5_MD3,M2_PR5_MD3.5,M2_PR5_MD4,M2_PR5_MD4.5,M2_PR5_MD5,M2_BT_MD,M2_ELO_MD)
+# WD
+M2_WD<- c(M2_PR1_WD,M2_PR2.1_WD,M2_PR2.3_WD,M2_PR3.1_WD,M2_PR4_WD,M2_PR2.2_WD0.01,
+M2_PR2.2_WD0.05,M2_PR2.2_WD0.1,M2_PR2.2_WD0.2,M2_PR2.2_WD0.3,M2_PR2.2_WD0.4,
+M2_PR2.2_WD0.5,M2_PR3.2_WD0.5,M2_PR3.2_WD1,M2_PR3.2_WD1.5,M2_PR3.2_WD2,
+M2_PR3.2_WD2.5,M2_PR3.2_WD3,M2_PR3.3_WD0.5,M2_PR3.3_WD1,M2_PR3.3_WD1.5,
+M2_PR3.3_WD2,M2_PR3.3_WD2.5,M2_PR3.3_WD3,M2_PR5_WD1.5,M2_PR5_WD2,M2_PR5_WD2.5,
+M2_PR5_WD3,M2_PR5_WD3.5,M2_PR5_WD4,M2_PR5_WD4.5,M2_PR5_WD5,M2_BT_WD,M2_ELO_WD)
+# XD
+M2_XD<- c(M2_PR1_XD,M2_PR2.1_XD,M2_PR2.3_XD,M2_PR3.1_XD,M2_PR4_XD,M2_PR2.2_XD0.01,
+M2_PR2.2_XD0.05,M2_PR2.2_XD0.1,M2_PR2.2_XD0.2,M2_PR2.2_XD0.3,M2_PR2.2_XD0.4,
+M2_PR2.2_XD0.5,M2_PR3.2_XD0.5,M2_PR3.2_XD1,M2_PR3.2_XD1.5,M2_PR3.2_XD2,
+M2_PR3.2_XD2.5,M2_PR3.2_XD3,M2_PR3.3_XD0.5,M2_PR3.3_XD1,M2_PR3.3_XD1.5,
+M2_PR3.3_XD2,M2_PR3.3_XD2.5,M2_PR3.3_XD3,M2_PR5_XD1.5,M2_PR5_XD2,M2_PR5_XD2.5,
+M2_PR5_XD3,M2_PR5_XD3.5,M2_PR5_XD4,M2_PR5_XD4.5,M2_PR5_XD5,M2_BT_XD,M2_ELO_XD)
+# METHOD3
+# MS
+M3_MS<- c(M3_PR1_MS,M3_PR2.1_MS,M3_PR2.3_MS,M3_PR3.1_MS,M3_PR4_MS,M3_PR2.2_MS0.01,
+M3_PR2.2_MS0.05,M3_PR2.2_MS0.1,M3_PR2.2_MS0.2,M3_PR2.2_MS0.3,M3_PR2.2_MS0.4,
+M3_PR2.2_MS0.5,M3_PR3.2_MS0.5,M3_PR3.2_MS1,M3_PR3.2_MS1.5,M3_PR3.2_MS2,
+M3_PR3.2_MS2.5,M3_PR3.2_MS3,M3_PR3.3_MS0.5,M3_PR3.3_MS1,M3_PR3.3_MS1.5,
+M3_PR3.3_MS2,M3_PR3.3_MS2.5,M3_PR3.3_MS3,M3_PR5_MS1.5,M3_PR5_MS2,M3_PR5_MS2.5,
+M3_PR5_MS3,M3_PR5_MS3.5,M3_PR5_MS4,M3_PR5_MS4.5,M3_PR5_MS5,M3_BT_MS,M3_ELO_MS)
+# WS
+M3_WS<- c(M3_PR1_WS,M3_PR2.1_WS,M3_PR2.3_WS,M3_PR3.1_WS,M3_PR4_WS,M3_PR2.2_WS0.01,
+M3_PR2.2_WS0.05,M3_PR2.2_WS0.1,M3_PR2.2_WS0.2,M3_PR2.2_WS0.3,M3_PR2.2_WS0.4,
+M3_PR2.2_WS0.5,M3_PR3.2_WS0.5,M3_PR3.2_WS1,M3_PR3.2_WS1.5,M3_PR3.2_WS2,
+M3_PR3.2_WS2.5,M3_PR3.2_WS3,M3_PR3.3_WS0.5,M3_PR3.3_WS1,M3_PR3.3_WS1.5,
+M3_PR3.3_WS2,M3_PR3.3_WS2.5,M3_PR3.3_WS3,M3_PR5_WS1.5,M3_PR5_WS2,M3_PR5_WS2.5,
+M3_PR5_WS3,M3_PR5_WS3.5,M3_PR5_WS4,M3_PR5_WS4.5,M3_PR5_WS5,M3_BT_WS,M3_ELO_WS)
+# MD
+M3_MD<- c(M3_PR1_MD,M3_PR2.1_MD,M3_PR2.3_MD,M3_PR3.1_MD,M3_PR4_MD,M3_PR2.2_MD0.01,
+M3_PR2.2_MD0.05,M3_PR2.2_MD0.1,M3_PR2.2_MD0.2,M3_PR2.2_MD0.3,M3_PR2.2_MD0.4,
+M3_PR2.2_MD0.5,M3_PR3.2_MD0.5,M3_PR3.2_MD1,M3_PR3.2_MD1.5,M3_PR3.2_MD2,
+M3_PR3.2_MD2.5,M3_PR3.2_MD3,M3_PR3.3_MD0.5,M3_PR3.3_MD1,M3_PR3.3_MD1.5,
+M3_PR3.3_MD2,M3_PR3.3_MD2.5,M3_PR3.3_MD3,M3_PR5_MD1.5,M3_PR5_MD2,M3_PR5_MD2.5,
+M3_PR5_MD3,M3_PR5_MD3.5,M3_PR5_MD4,M3_PR5_MD4.5,M3_PR5_MD5,M3_BT_MD,M3_ELO_MD)
+# WD
+M3_WD<- c(M3_PR1_WD,M3_PR2.1_WD,M3_PR2.3_WD,M3_PR3.1_WD,M3_PR4_WD,M3_PR2.2_WD0.01,
+M3_PR2.2_WD0.05,M3_PR2.2_WD0.1,M3_PR2.2_WD0.2,M3_PR2.2_WD0.3,M3_PR2.2_WD0.4,
+M3_PR2.2_WD0.5,M3_PR3.2_WD0.5,M3_PR3.2_WD1,M3_PR3.2_WD1.5,M3_PR3.2_WD2,
+M3_PR3.2_WD2.5,M3_PR3.2_WD3,M3_PR3.3_WD0.5,M3_PR3.3_WD1,M3_PR3.3_WD1.5,
+M3_PR3.3_WD2,M3_PR3.3_WD2.5,M3_PR3.3_WD3,M3_PR5_WD1.5,M3_PR5_WD2,M3_PR5_WD2.5,
+M3_PR5_WD3,M3_PR5_WD3.5,M3_PR5_WD4,M3_PR5_WD4.5,M3_PR5_WD5,M3_BT_WD,M3_ELO_WD)
+# XD
+M3_XD<- c(M3_PR1_XD,M3_PR2.1_XD,M3_PR2.3_XD,M3_PR3.1_XD,M3_PR4_XD,M3_PR2.2_XD0.01,
+M3_PR2.2_XD0.05,M3_PR2.2_XD0.1,M3_PR2.2_XD0.2,M3_PR2.2_XD0.3,M3_PR2.2_XD0.4,
+M3_PR2.2_XD0.5,M3_PR3.2_XD0.5,M3_PR3.2_XD1,M3_PR3.2_XD1.5,M3_PR3.2_XD2,
+M3_PR3.2_XD2.5,M3_PR3.2_XD3,M3_PR3.3_XD0.5,M3_PR3.3_XD1,M3_PR3.3_XD1.5,
+M3_PR3.3_XD2,M3_PR3.3_XD2.5,M3_PR3.3_XD3,M3_PR5_XD1.5,M3_PR5_XD2,M3_PR5_XD2.5,
+M3_PR5_XD3,M3_PR5_XD3.5,M3_PR5_XD4,M3_PR5_XD4.5,M3_PR5_XD5,M3_BT_XD,M3_ELO_XD)
+
+####
+# df_method1 <- data.frame(Model = models,MS = M1_MS,WS = M1_WS,MD = M1_MD,
+#                          WD = M1_WD,XD = M1_XD,stringsAsFactors = FALSE)
+# df_method2 <- data.frame(Model = models,MS = M2_MS,WS = M2_WS,MD = M2_MD,
+#                          WD = M2_WD,XD = M2_XD,stringsAsFactors = FALSE)
+# df_method3 <- data.frame(Model = models,MS = M3_MS,WS = M3_WS,MD = M3_MD,
+#                          WD = M3_WD,XD = M3_XD,stringsAsFactors = FALSE)
+# write.xlsx(x = list("Method 1" = df_method1,"Method 2" = df_method2,
+#                     "Method 3" = df_method3),file = "Predictive_Accuracy.xlsx")
+```
+
+The following section is used to process the Correlation Analysis between the ranking models
+```{r root mean squared, RMSD}
+BT_MS$PlayerID <- as.integer(BT_MS$PlayerID)
+ELO_MS$PlayerID <- as.integer(ELO_MS$PlayerID)
+MS_one <- merge(PR5_MS, BT_MS, by.x = "PlayerID", by.y = "PlayerID")
+MS_two <- merge(PR5_MS, ELO_MS, by.x = "PlayerID", by.y = "PlayerID")
+MS_three <- merge(BT_MS, ELO_MS, by.x = "PlayerID", by.y = "PlayerID")
+MS_four <- merge(PR5_MS, PR1_MS, by.x = "PlayerID", by.y = "PlayerID")
+MS_five <- merge(PR5_MS, PR3.2_MS, by.x = "PlayerID", by.y = "PlayerID")
+rmsd <- function(x, y) {
+  sqrt( mean( (x - y)^2 ) )
+}
+rms1      <- rmsd(MS_one$Rank.x, MS_one$Rank.y)
+rms2      <- rmsd(MS_two$Rank.x, MS_two$Rank.y)
+rms3      <- rmsd(MS_three$Rank.x, MS_three$Rank.y)
+rms4      <- rmsd(MS_four$Rank.x, MS_four$Rank.y)
+rms5      <- rmsd(MS_five$Rank.x, MS_five$Rank.y)
+
+results <- data.frame(
+  comparison = c("PR5 vs BT","PR5 vs ELO","BT vs ELO","PR5 vs PR1","PR5 vs PR3.2"),
+  Kendall= c(k1,k2,k3,k4,k5),
+  Spearman  = c(spearman1,spearman2,spearman3,spearman4,spearman5),
+  RMSD      = c(rms1,rms2,rms3,rms4,rms5)
+)
+write.csv("Correlation_MS.csv",results)
+```
+```{r save correlation matrix}
+model_names <- c("PR1", "PR2.1", "PR2.2", "PR2.3","PR3.1", "PR3.2", "PR3.3","PR4", "PR5", "BT","ELO")
+
+model_list <- map(model_names,
+  ~ get(paste0(.x, "_MS")) %>%
+      select(PlayerID, Rank) %>%
+      rename(!!.x := Rank))
+
+merged_ranks <- reduce(model_list, full_join, by = "PlayerID")
+corr_mat <- cor(select(merged_ranks, -PlayerID),method = "spearman",
+                use ="pairwise.complete.obs")
+
+write.csv(corr_mat, file= "Correlation_Matrix.csv",  row.names= TRUE)
+```

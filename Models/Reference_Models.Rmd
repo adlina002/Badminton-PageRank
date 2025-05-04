@@ -1,0 +1,132 @@
+---
+title: "Reference Models"
+output: html_document
+---
+```{r setup, include=FALSE}
+MS<- read.csv("TOP_MS.csv")
+WS<- read.csv("TOP_WS.csv")
+MD<- read.csv("TOP_MD.csv")
+WD<- read.csv("TOP_WD.csv")
+XD<- read.csv("TOP_XD.csv")
+```
+
+```{r BT}
+BT <- function(match_history, delta = 1e-6, max_iter = 1000, epsilon = 1e-6) {
+# Prepare Data
+  players <- as.character(sort(unique(c(match_history$Winner, match_history$Loser))))
+  n_players <- length(players)
+# Pairwise Win Counts and Total Games Matrix
+  win_matrix <- matrix(0, nrow = n_players, ncol = n_players,
+                       dimnames = list(players, players))
+  for(i in seq_len(nrow(match_history))) {
+    w <- as.character(match_history$Winner[i])
+    l <- as.character(match_history$Loser[i])
+    win_matrix[w, l] <- win_matrix[w, l] + 1
+  }
+  game_matrix <- win_matrix + t(win_matrix)
+# Initialize
+  p <- rep(1, n_players)
+  names(p) <- players
+# Calculate Player Strength iteratively
+  for(iter in seq_len(max_iter)) {
+    p_new <- numeric(n_players)
+    for(i in seq_len(n_players)) {
+      W_i   <- sum(win_matrix[i, ])
+      denom <- sum(game_matrix[i, -i] * (p[i] / (p[i] + p[-i])))
+      if (denom > 0) { # Floor method
+        p_new[i] <- max(W_i / denom, delta) 
+      } else {
+        p_new[i] <- p[i]
+      }
+    }
+# Convergence check
+    if (max(abs(p_new - p)) < epsilon) {
+      message("Converged after ", iter, " iterations.")
+      p <- p_new
+      break
+    }
+    p <- p_new
+  }
+# Return Output
+  ranking <- data.frame(
+    PlayerID = players,
+    Strength = p
+  ) %>%
+    arrange(desc(Strength)) %>%
+    mutate(Rank = rank(-Strength, ties.method = "min"))
+
+  return(ranking)
+}
+```
+```{r ELO}
+# Function to calculate Elo update for a single match
+update_elo <- function(rating_w, rating_l, k = 32) {
+  expected_winner <- 1 / (1 + 10^((rating_l - rating_w) / 400))
+  expected_loser <- 1 - expected_winner
+  new_rating_w <- rating_w + k * (1 - expected_winner)
+  new_rating_l <- rating_l + k * (0 - expected_loser)
+  return(c(new_rating_w, new_rating_l))
+}
+
+# Function to compute Elo ratings for entire dataset
+ELO <- function(match_history, k = 32, initial_rating = 1500) {
+# Get the unique list of players from both Winner and Loser columns
+  players <- unique(c(match_history$Winner, match_history$Loser))
+# Initialize each player's rating to the initial_rating
+  player_ratings <- setNames(rep(initial_rating, length(players)), players)
+# Iterate through each match and update the ratings
+  for (i in seq_len(nrow(match_history))) {
+    winner <- as.character(match_history$Winner[i])
+    loser <- as.character(match_history$Loser[i])
+    rating_w <- player_ratings[winner]
+    rating_l <- player_ratings[loser]
+    new_ratings <- update_elo(rating_w, rating_l, k)
+    player_ratings[winner] <- new_ratings[1]
+    player_ratings[loser] <- new_ratings[2]
+  }
+# Return Output
+  elo_df <- data.frame(PlayerID = names(player_ratings),
+                       Rating = player_ratings,
+                       stringsAsFactors = FALSE)
+  elo_df <- elo_df[order(-elo_df$Rating), ]
+  elo_df$Rank <- seq_len(nrow(elo_df))
+  return(elo_df)
+}
+```
+
+This next chunk is used to run the FULL cleaned dataset (without train-test split) 
+
+```{r Full run}
+BT_MS <- BT(MS)
+BT_WS <- BT(WS)
+BT_MD <- BT(MD)
+BT_WD <- BT(WD)
+BT_XD <- BT(XD)
+ELO_MS <- ELO(MS)
+ELO_WS <- ELO(WS)
+ELO_MD <- ELO(MD)
+ELO_WD <- ELO(WD)
+ELO_XD <- ELO(XD)
+# write.csv(BT_MS, "BT_MS.csv", row.names = FALSE, na="")
+# write.csv(BT_WS, "BT_WS.csv", row.names = FALSE, na="")
+# write.csv(BT_MD, "BT_MD.csv", row.names = FALSE, na="")
+# write.csv(BT_WD, "BT_WD.csv", row.names = FALSE, na="")
+# write.csv(BT_XD, "BT_XD.csv", row.names = FALSE, na="")
+# write.csv(ELO_MS, "ELO_MS.csv", row.names = FALSE, na="")
+# write.csv(ELO_WS, "ELO_WS.csv", row.names = FALSE, na="")
+# write.csv(ELO_MD, "ELO_MD.csv", row.names = FALSE, na="")
+# write.csv(ELO_WD, "ELO_WD.csv", row.names = FALSE, na="")
+# write.csv(ELO_XD, "ELO_XD.csv", row.names = FALSE, na="")
+```
+```{r Application}
+APP_MS<- read.csv("APPLICATION_MS.csv")
+APP_WS<- read.csv("APPLICATION_WS.csv")
+ELO_MS_APP<-ELO(APP_MS)
+ELO_WS_APP<-ELO(APP_WS)
+BT_MS_APP<-BT(APP_MS)
+BT_WS_APP<-BT(APP_WS)
+# write.csv(ELO_MS_APP, "APP_ELO_MS.csv", row.names = FALSE, na="")
+# write.csv(ELO_WS_APP, "APP_ELO_WS.csv", row.names = FALSE, na="")
+# write.csv(BT_MS_APP, "APP_BT_MS.csv", row.names = FALSE, na="")
+# write.csv(BT_WS_APP, "APP_BT_WS.csv", row.names = FALSE, na="")
+```
