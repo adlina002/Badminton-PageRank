@@ -36,8 +36,7 @@ Folder: Models
 | Ranking_Results_Compiled.xlsx  | Compilation of PlayerID, rank, and PR/Elo/BT scores for all disciplines                                                |
 | Correlation_Matrix.xlsx        | Correlation matrix for all models.                                                                  |
 | tourID.csv                     | List of tournaments given time-boost (PR5).                                                         |
-|Discipline-specific files (using abbreviations):
-MS = Men’s Singles, WS = Women’s Singles, MD = Men’s Doubles, WD = Women’s Doubles, XD = Mixed Doubles.|
+|The following files contain discipline-specific files (using abbreviations): |MS = Men’s Singles, WS = Women’s Singles, MD = Men’s Doubles, WD = Women’s Doubles, XD = Mixed Doubles.|
 | TOP_MS.csv                     | Dataset of players with more than the minimum match frequency for Men’s Singles.                    |
 | TOP_MS_TRAIN.csv               | 80% training dataset from TOP_MS.                                                                  |
 | TOP_MS_TEST.csv                | 20% test dataset from TOP_MS.                                                                      |
