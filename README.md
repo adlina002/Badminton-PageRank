@@ -1,4 +1,4 @@
-# Badminton-PageRank
+# Dynamic PageRank for Badminton
 Project Title: Dynamic PageRank for Badminton: A Data-Driven Ranking System and Its Applications  
 Candidate Number: LHLW8
 
