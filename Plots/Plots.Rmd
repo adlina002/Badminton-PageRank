@@ -1,0 +1,694 @@
+---
+title: "Plot"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggrepel)
+library(pheatmap)
+library(viridis)        
+library(RColorBrewer)   
+library(grid)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(patchwork)
+library(grid)   
+library(readxl)
+my_theme <- theme_minimal(base_size = 12, base_family = "sans") +
+  theme(
+    plot.title       = element_text(face = "bold", size = 14, hjust = 0.5),
+    axis.title       = element_text(size = 12),
+    axis.text        = element_text(size = 10, colour = "black"),
+    panel.grid.major = element_line(colour = "grey80", linetype = "dashed"),
+    panel.grid.minor = element_blank(),
+    legend.position  = "bottom",
+    legend.title     = element_text(size = 10),
+    legend.text      = element_text(size = 8),
+    plot.margin      = margin(10, 10, 10, 10)
+  )
+# Line Chart
+## MS
+MSTOP<- read_excel("Line-MS.xlsx", sheet = 1)
+MSMIDDLE<- read_excel("Line-MS.xlsx", sheet = 2)
+MSBOTTOM<- read_excel("Line-MS.xlsx", sheet = 3)
+## WS
+WSTOP<- read_excel("Line-WS.xlsx", sheet = 1)
+WSMIDDLE<- read_excel("Line-WS.xlsx", sheet = 2)
+WSBOTTOM<- read_excel("Line-WS.xlsx", sheet = 3)
+## MD
+MDTOP<- read_excel("Line-MD.xlsx", sheet = 1)
+MDMIDDLE<- read_excel("Line-MD.xlsx", sheet = 2)
+MDBOTTOM<- read_excel("Line-MD.xlsx", sheet = 3)
+## WD
+WDTOP<- read_excel("Line-WD.xlsx", sheet = 1)
+WDMIDDLE<- read_excel("Line-WD.xlsx", sheet = 2)
+WDBOTTOM<- read_excel("Line-WD.xlsx", sheet = 3)
+## XD
+XDTOP<- read_excel("Line-XD.xlsx", sheet = 1)
+XDMIDDLE<- read_excel("Line-XD.xlsx", sheet = 2)
+XDBOTTOM<- read_excel("Line-XD.xlsx", sheet = 3)
+# Heat Map
+MSheatfull<- read_excel("Heatmap-MS.xlsx", sheet = 1)
+MSheatmid<- read_excel("Heatmap-MS.xlsx", sheet = 2)
+WSheatfull<- read_excel("Heatmap-WS.xlsx", sheet = 1)
+WSheatmid<- read_excel("Heatmap-WS.xlsx", sheet = 2)
+MDheatfull<- read_excel("Heatmap-MD.xlsx", sheet = 1)
+MDheatmid<- read_excel("Heatmap-MD.xlsx", sheet = 2)
+WDheatfull<- read_excel("Heatmap-WD.xlsx", sheet = 1)
+WDheatmid<- read_excel("Heatmap-WD.xlsx", sheet = 2)
+XDheatfull<- read_excel("Heatmap-XD.xlsx", sheet = 1)
+XDheatmid<- read_excel("Heatmap-XD.xlsx", sheet = 2)
+# Scatter Plot
+## MS
+MS1<- read_excel("Scatter-MS.xlsx", sheet = 1)
+MS2<- read_excel("Scatter-MS.xlsx", sheet = 2)
+MS3<- read_excel("Scatter-MS.xlsx", sheet = 3)
+MS4<- read_excel("Scatter-MS.xlsx", sheet = 4)
+## WS
+WS1<- read_excel("Scatter-WS.xlsx", sheet = 1)
+WS2<- read_excel("Scatter-WS.xlsx", sheet = 2)
+WS3<- read_excel("Scatter-WS.xlsx", sheet = 3)
+WS4<- read_excel("Scatter-WS.xlsx", sheet = 4)
+## MD
+MD1<- read_excel("Scatter-MD.xlsx", sheet = 1)
+MD2<- read_excel("Scatter-MD.xlsx", sheet = 2)
+MD3<- read_excel("Scatter-MD.xlsx", sheet = 3)
+MD4<- read_excel("Scatter-MD.xlsx", sheet = 4)
+## WD
+WD1<- read_excel("Scatter-WD.xlsx", sheet = 1)
+WD2<- read_excel("Scatter-WD.xlsx", sheet = 2)
+WD3<- read_excel("Scatter-WD.xlsx", sheet = 3)
+WD4<- read_excel("Scatter-WD.xlsx", sheet = 4)
+## XD
+XD1<- read_excel("Scatter-XD.xlsx", sheet = 1)
+XD2<- read_excel("Scatter-XD.xlsx", sheet = 2)
+XD3<- read_excel("Scatter-XD.xlsx", sheet = 3)
+XD4<- read_excel("Scatter-XD.xlsx", sheet = 4)
+# Column chart
+methodMS <- read_excel("Predictive_Accuracy_v3.xlsx", sheet = 1)
+methodWS <- read_excel("Predictive_Accuracy_v3.xlsx", sheet = 2)
+methodMD <- read_excel("Predictive_Accuracy_v3.xlsx", sheet = 3)
+methodWD <- read_excel("Predictive_Accuracy_v3.xlsx", sheet = 4)
+methodXD <- read_excel("Predictive_Accuracy_v3.xlsx", sheet = 5)
+# Brier Scores
+BrierScore <- read_excel("Brier_Scores_v2.xlsx", sheet = 1)
+# Other
+info<-read_excel("Information_Score.xlsx", sheet = 1)
+```
+```{r Line [6]}
+# MS
+MSTOPdf <- MSTOP %>% pivot_longer( 
+  cols= c(PR1, PR2.1, PR2.2, PR2.3, PR3.1, PR3.2, PR3.3, PR4, PR5), 
+  names_to  = "Model",values_to = "Rank") %>% rename(PlayerName = Name)  
+MSMIDDLEdf <- MSMIDDLE %>% pivot_longer( 
+  cols= c(PR1, PR2.1, PR2.2, PR2.3, PR3.1, PR3.2, PR3.3, PR4, PR5), 
+  names_to  = "Model",values_to = "Rank") %>% rename(PlayerName = Name)
+MSBOTTOMdf <- MSBOTTOM %>% pivot_longer( 
+  cols= c(PR1, PR2.1, PR2.2, PR2.3, PR3.1, PR3.2, PR3.3, PR4, PR5), 
+  names_to  = "Model",values_to = "Rank") %>% rename(PlayerName = Name)
+MSTOPrefdf <- MSTOP %>% pivot_longer( 
+  cols= c(PR5, BT, ELO), 
+  names_to  = "Model",values_to = "Rank") %>% rename(PlayerName = Name)  
+MSMIDDLErefdf <- MSMIDDLE %>% pivot_longer( 
+  cols= c(PR5, BT, ELO), 
+  names_to  = "Model",values_to = "Rank") %>% rename(PlayerName = Name)
+MSBOTTOMrefdf <- MSBOTTOM %>% pivot_longer( 
+  cols= c(PR5, BT, ELO), 
+  names_to  = "Model",values_to = "Rank") %>% rename(PlayerName = Name)
+####
+LINE1MS <- ggplot(MSTOPdf, aes(Model, Rank, group = PlayerName, colour = PlayerName)) +
+  geom_line(size = 1, alpha = 0.8) +geom_point(size = 2) +
+  geom_text_repel(aes(label = Rank),size= 3,show.legend = FALSE,nudge_y = 0.3,segment.size= 0.2) +
+  scale_y_reverse(name   = "Player Rank (1 = best)",breaks = seq(1, max(MSTOPdf$Rank), by = 2),
+    expand = expansion(add = 0.5)) + scale_x_discrete(name= "Model",expand = expansion(add = 0.5)) +  
+  labs(title = "Men’s Singles: Top 30 Rank Changes (PageRank Models)",colour = "Player") + my_theme +
+  theme(axis.text.y     = element_blank(),axis.text.x= element_text(angle = 45, hjust = 1),
+    legend.position = "bottom", plot.margin= margin(10, 10, 10, 10)) +
+  guides(colour = guide_legend(nrow   = 4, byrow  = TRUE, keywidth  = unit(0.6, "cm"),keyheight = unit(0.3,"cm")))
+LINE2MS <- ggplot(MSMIDDLEdf, aes(Model, Rank, group = PlayerName, colour = PlayerName)) +
+  geom_line(size = 1, alpha = 0.8) +geom_point(size = 2) +
+  geom_text_repel(aes(label = Rank),size= 3,show.legend = FALSE,nudge_y = 0.3,segment.size= 0.2) +
+  scale_y_reverse(name   = "Player Rank (1 = best)",breaks = seq(1, max(MSMIDDLEdf$Rank), by = 2),
+    expand = expansion(add = 0.5)) + scale_x_discrete(name= "Model",expand = expansion(add = 0.5)) +  
+  labs(title = "Men’s Singles: Middle 30 Rank Changes (PageRank Models)",colour = "Player") + my_theme +
+  theme(axis.text.y     = element_blank(),axis.text.x= element_text(angle = 45, hjust = 1),
+    legend.position = "bottom", plot.margin= margin(10, 10, 10, 10)) +
+  guides(colour = guide_legend(nrow   = 4, byrow  = TRUE, keywidth  = unit(0.6, "cm"),keyheight = unit(0.3,"cm")))
+LINE3MS <- ggplot(MSBOTTOMdf, aes(Model, Rank, group = PlayerName, colour = PlayerName)) +
+  geom_line(size = 1, alpha = 0.8) +geom_point(size = 2) +
+  geom_text_repel(aes(label = Rank),size= 3,show.legend = FALSE,nudge_y = 0.3,segment.size= 0.2) +
+  scale_y_reverse(name   = "Player Rank (1 = best)",breaks = seq(1, max(MSBOTTOMdf$Rank), by = 2),
+    expand = expansion(add = 0.5)) + scale_x_discrete(name= "Model",expand = expansion(add = 0.5)) +  
+  labs(title = "Men’s Singles: Bottom 30 Rank Changes (PageRank Models)",colour = "Player") + my_theme +
+  theme(axis.text.y     = element_blank(),axis.text.x= element_text(angle = 45, hjust = 1),
+    legend.position = "bottom", plot.margin= margin(10, 10, 10, 10)) +
+  guides(colour = guide_legend(nrow   = 4, byrow  = TRUE, keywidth  = unit(0.6, "cm"),keyheight = unit(0.3,"cm")))
+LINE1refMS <- ggplot(MSTOPrefdf, aes(Model, Rank, group = PlayerName, colour = PlayerName)) +
+  geom_line(size = 1, alpha = 0.8) +geom_point(size = 2) +
+  geom_text_repel(aes(label = Rank),size= 3,show.legend = FALSE,nudge_y = 0.3,segment.size= 0.2) +
+  scale_y_reverse(name   = "Player Rank (1 = best)",breaks = seq(1, max(MSTOPrefdf$Rank), by = 2),
+    expand = expansion(add = 0.5)) + scale_x_discrete(name= "Model",expand = expansion(add = 0.5)) +  
+  labs(title = "Men’s Singles: Top 30 Rank Changes (Reference Models)",colour = "Player") + my_theme +
+  theme(axis.text.y     = element_blank(),axis.text.x= element_text(angle = 45, hjust = 1),
+    legend.position = "bottom", plot.margin= margin(10, 10, 10, 10)) +
+  guides(colour = guide_legend(nrow   = 4, byrow  = TRUE, keywidth  = unit(0.6, "cm"),keyheight = unit(0.3,"cm")))
+LINE2refMS <- ggplot(MSMIDDLErefdf, aes(Model, Rank, group = PlayerName, colour = PlayerName)) +
+  geom_line(size = 1, alpha = 0.8) +geom_point(size = 2) +
+  geom_text_repel(aes(label = Rank),size= 3,show.legend = FALSE,nudge_y = 0.3,segment.size= 0.2) +
+  scale_y_reverse(name   = "Player Rank (1 = best)",breaks = seq(1, max(MSMIDDLErefdf$Rank), by = 2),
+    expand = expansion(add = 0.5)) + scale_x_discrete(name= "Model",expand = expansion(add = 0.5)) +  
+  labs(title = "Men’s Singles: Middle 30 Rank Changes (Reference Models)",colour = "Player") + my_theme +
+  theme(axis.text.y     = element_blank(),axis.text.x= element_text(angle = 45, hjust = 1),
+    legend.position = "bottom", plot.margin= margin(10, 10, 10, 10)) +
+  guides(colour = guide_legend(nrow   = 4, byrow  = TRUE, keywidth  = unit(0.6, "cm"),keyheight = unit(0.3,"cm")))
+LINE3refMS <- ggplot(MSBOTTOMrefdf, aes(Model, Rank, group = PlayerName, colour = PlayerName)) +
+  geom_line(size = 1, alpha = 0.8) +geom_point(size = 2) +
+  geom_text_repel(aes(label = Rank),size= 3,show.legend = FALSE,nudge_y = 0.3,segment.size= 0.2) +
+  scale_y_reverse(name   = "Player Rank (1 = best)",breaks = seq(1, max(MSBOTTOMrefdf$Rank), by = 2),
+    expand = expansion(add = 0.5)) + scale_x_discrete(name= "Model",expand = expansion(add = 0.5)) +  
+  labs(title = "Men’s Singles: Bottom 30 Rank Changes (Reference Models)",colour = "Player") + my_theme +
+  theme(axis.text.y     = element_blank(),axis.text.x= element_text(angle = 45, hjust = 1),
+    legend.position = "bottom", plot.margin= margin(10, 10, 10, 10)) +
+  guides(colour = guide_legend(nrow   = 4, byrow  = TRUE, keywidth  = unit(0.6, "cm"),keyheight = unit(0.3,"cm")))
+
+
+
+ggsave("LineTOPMS.png", LINE1MS,width = 14, height = 8, dpi= 300)
+LINE1MS
+ggsave("LineMIDMS.png", LINE2MS,width = 14, height = 8, dpi= 300)
+LINE2MS
+ggsave("LineBOTMS.png", LINE3MS,width = 14, height = 8, dpi= 300)
+LINE3MS
+ggsave("LineTOPMSref.png", LINE1refMS,width = 14, height = 8, dpi= 300)
+LINE1refMS
+ggsave("LineMIDMSref.png", LINE2refMS,width = 14, height = 8, dpi= 300)
+LINE2refMS
+ggsave("LineBOTMSref.png", LINE3refMS,width = 14, height = 8, dpi= 300)
+LINE3refMS
+```
+```{r Heatmap [2]}
+model_levels <- c("PR1", "PR2.1", "PR2.2", "PR2.3", "PR3.1", "PR3.2","PR3.3", 
+                  "PR4", "PR5", "BT", "ELO")
+# MS
+MSheatfull_df <-MSheatfull %>% rename(Player = Name) %>% 
+  pivot_longer(cols= -Player,names_to  = "Model",values_to = "RankChange")
+MSheatfull_df <-MSheatfull_df %>% mutate(Model= factor(Model,levels=model_levels))
+heatMS<- ggplot(MSheatfull_df,aes(x = Model,y = factor(Player, levels = rev(unique(Player))),fill = RankChange)) +geom_tile() +
+  scale_fill_viridis_c(name   = "Rank Change",option = "D",breaks = pretty(lim, n = 5)) +labs(title = "Men’s Singles: Rank-Change Heatmap (All Models)",x = "Model", y = NULL)+theme_minimal(base_size = 12) + theme( axis.text.y  = element_blank(),axis.ticks.y = element_blank(),axis.text.x  = element_text(angle = 0, vjust = .5, hjust = .5),
+    panel.grid = element_blank(),plot.title   = element_text(hjust = 0.5, face = "bold"))
+MSheatmid_df <-MSheatmid %>% rename(Player = Name) %>% 
+  pivot_longer(cols= -Player,names_to  = "Model",values_to = "RankChange")
+MSheatmid_df <-MSheatmid_df %>% mutate(Model= factor(Model,levels=model_levels))
+heatMSmid<- ggplot(MSheatmid_df,aes(x = Model,y = factor(Player, levels = rev(unique(Player))),fill = RankChange)) +geom_tile() +
+  scale_fill_viridis_c(name   = "Rank Change",option = "D",breaks = pretty(lim, n = 5)) +labs(title = "Men’s Singles: Mid Rank-Change Heatmap (All Models)",x = "Model", y = NULL)+theme_minimal(base_size = 12) + theme( axis.text.y  = element_blank(),axis.ticks.y = element_blank(),axis.text.x  = element_text(angle = 0, vjust = .5, hjust = .5),
+    panel.grid = element_blank(),plot.title   = element_text(hjust = 0.5, face = "bold"))
+
+ggsave("HeatmapMS.png", heatMS, width = 14, height = 8, dpi= 300)
+ggsave("HeatmapMS-Large.png", heatMSmid, width = 14, height = 8, dpi= 300)
+```
+
+```{r Scatter}
+base_plot_style <- function(title_text, ylab) {
+  list(
+    geom_point(size = 0.8),
+    geom_abline(slope = 1, intercept = 0, colour = "gray", linewidth = 1),
+    scale_color_gradient2(
+      name     = "Rank Difference",
+      midpoint = 0,
+      high     = "#092145",
+      mid      = "#94cce0"
+    ),
+    coord_fixed(ratio = 1),
+    theme_minimal(base_family = "sans") +
+      theme(
+        panel.background = element_rect(fill = "white", colour = NA),
+        plot.background  = element_rect(fill = "white", colour = NA),
+        panel.grid.major = element_line(colour = "grey80"),
+        panel.grid.minor = element_line(colour = "grey90"),
+        axis.text        = element_text(colour = "black"),
+        axis.title       = element_text(colour = "black"),
+        legend.text      = element_text(colour = "black"),
+        legend.title     = element_text(colour = "black"),
+        plot.title       = element_text(size = 14, face = "bold", hjust = 0.5)
+      ),
+    labs(
+      title = title_text,
+      x     = "Rank in PR5",
+      y     = ylab
+    )
+  )
+}
+# MS
+plotMS1 <- ggplot(MS1, aes(y = PR1, x= PR5, color = Diff)) + base_plot_style("Men's Singles: PR1 vs PR5",  "Rank in PR1")
+plotMS2 <- ggplot(MS2, aes(y = PR3.2,x = PR5, color = Diff)) + base_plot_style("Men's Singles: PR3.2 vs PR5", "Rank in PR3.2")
+plotMS3 <- ggplot(MS3, aes(y = BT,  x= PR5, color = Diff)) + base_plot_style("Men's Singles: BT vs PR5", "Rank in BT")
+plotMS4 <- ggplot(MS4, aes(y = ELO, x = PR5, color = Diff)) + base_plot_style("Men's Singles: ELO vs PR5", "Rank in ELO")
+combinedMS <- (plotMS1 | plotMS2) / (plotMS3 | plotMS4)
+# WS
+plotWS1 <- ggplot(WS1, aes(y = PR1, x= PR5, color = Diff)) + base_plot_style("Women's Singles: PR1 vs PR5",  "Rank in PR1")
+plotWS2 <- ggplot(WS2, aes(y = PR4,x = PR5, color = Diff)) + base_plot_style("Women's Singles: PR4 vs PR5", "Rank in PR4")
+plotWS3 <- ggplot(WS3, aes(y = BT,  x= PR5, color = Diff)) + base_plot_style("Women's Singles: BT vs PR5", "Rank in BT")
+plotWS4 <- ggplot(WS4, aes(y = ELO, x = PR5, color = Diff)) + base_plot_style("Women's Singles: ELO vs PR5", "Rank in ELO")
+combinedWS <- (plotWS1 | plotWS2) / (plotWS3 | plotWS4)
+# MD
+plotMD1 <- ggplot(MD1, aes(y = PR1, x= PR5, color = Diff)) + base_plot_style("Men's Doubles: PR1 vs PR5",  "Rank in PR1")
+plotMD2 <- ggplot(MD2, aes(y = PR2.1,x = PR5, color = Diff)) + base_plot_style("Men's Doubles: PR2.1 vs PR5", "Rank in PR2.1")
+plotMD3 <- ggplot(MD3, aes(y = BT,  x= PR5, color = Diff)) + base_plot_style("Men's Doubles: BT vs PR5", "Rank in BT")
+plotMD4 <- ggplot(MD4, aes(y = ELO, x = PR5, color = Diff)) + base_plot_style("Men's Doubles: ELO vs PR5", "Rank in ELO")
+combinedMD <- (plotMD1 | plotMD2) / (plotMD3 | plotMD4)
+# WD
+plotWD1 <- ggplot(WD1, aes(y = PR1, x= PR5, color = Diff)) + base_plot_style("Women's Doubles: PR1 vs PR5",  "Rank in PR1")
+plotWD2 <- ggplot(WD2, aes(y = PR3.1,x = PR5, color = Diff)) + base_plot_style("Women's Doubles: PR3.1 vs PR5", "Rank in PR3.1")
+plotWD3 <- ggplot(WD3, aes(y = BT,  x= PR5, color = Diff)) + base_plot_style("Women's Doubles: BT vs PR5", "Rank in BT")
+plotWD4 <- ggplot(WD4, aes(y = ELO, x = PR5, color = Diff)) + base_plot_style("Women's Doubles: ELO vs PR5", "Rank in ELO")
+combinedWD <- (plotWD1 | plotWD2) / (plotWD3 | plotWD4)
+# XD
+plotXD1 <- ggplot(XD1, aes(y = PR1, x= PR5, color = Diff)) + base_plot_style("Mixed Doubles: PR1 vs PR5",  "Rank in PR1")
+plotXD2 <- ggplot(XD2, aes(y = PR3.2,x = PR5, color = Diff)) + base_plot_style("Mixed Doubles: PR3.2 vs PR5", "Rank in PR3.2")
+plotXD3 <- ggplot(XD3, aes(y = BT,  x= PR5, color = Diff)) + base_plot_style("Mixed Doubles: BT vs PR5", "Rank in BT")
+plotXD4 <- ggplot(XD4, aes(y = ELO, x = PR5, color = Diff)) + base_plot_style("Mixed Doubles: ELO vs PR5", "Rank in ELO")
+combinedXD <- (plotXD1 | plotXD2) / (plotXD3 | plotXD4)
+
+ggsave(filename = "ScatterplotMS.png",combinedMS,width = 14,height= 8,dpi= 300)
+combinedMS
+ggsave(filename = "ScatterplotWS.png",combinedWS,width = 14,height= 8,dpi= 300)
+combinedWS
+ggsave(filename = "ScatterplotMD.png",combinedMD,width = 14,height= 8,dpi= 300)
+combinedMD
+ggsave(filename = "ScatterplotWD.png",combinedWD,width = 14,height= 8,dpi= 300)
+combinedWD
+ggsave(filename = "ScatterplotXD.png",combinedXD,width = 14,height= 8,dpi= 300)
+combinedXD
+```
+```{r hex bin scatter}
+library(ggplot2)
+library(viridis)
+library(hexbin)    # for geom_hex()
+library(patchwork) # for (a|b)/(c|d) layout
+
+# 1) PR1 vs PR5
+plotMS1_hex <- ggplot(MS1, aes(x = PR5, y = PR1)) +
+  geom_hex(bins = 30, alpha = 0.6) +
+  scale_fill_viridis_c(name = "Count", option = "C") +
+  geom_point(aes(color = Diff), size = 0.6) +
+  scale_color_gradient2(
+    name     = "Rank Difference",
+    midpoint = 0,
+    low      = "#94cce0",
+    mid      = "#94cce0",
+    high     = "#092145"
+  ) +
+  geom_abline(slope = 1, intercept = 0, colour = "gray50", size = 0.8) +
+  coord_fixed() +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid  = element_line(colour = "grey90"),
+    legend.key  = element_blank(),
+    plot.title  = element_text(size = 14, face = "bold", hjust = 0.5)
+  ) +
+  labs(
+    title = "Men's Singles: PR1 vs PR5 (hex‐binned)",
+    x     = "Rank in PR5",
+    y     = "Rank in PR1"
+  )
+
+# 2) PR3.2 vs PR5
+plotMS2_hex <- ggplot(MS2, aes(x = PR5, y = PR3.2)) +
+  geom_hex(bins = 30, alpha = 0.6) +
+  scale_fill_viridis_c(name = "Count", option = "C") +
+  geom_point(aes(color = Diff), size = 0.6) +
+  scale_color_gradient2(
+    name     = "Rank Difference",
+    midpoint = 0,
+    low      = "#94cce0",
+    mid      = "#94cce0",
+    high     = "#092145"
+  ) +
+  geom_abline(slope = 1, intercept = 0, colour = "gray50", size = 0.8) +
+  coord_fixed() +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid  = element_line(colour = "grey90"),
+    legend.key  = element_blank(),
+    plot.title  = element_text(size = 14, face = "bold", hjust = 0.5)
+  ) +
+  labs(
+    title = "Men's Singles: PR3.2 vs PR5 (hex‐binned)",
+    x     = "Rank in PR5",
+    y     = "Rank in PR3.2"
+  )
+
+# 3) BT vs PR5
+plotMS3_hex <- ggplot(MS3, aes(x = PR5, y = BT)) +
+  geom_hex(bins = 30, alpha = 0.6) +
+  scale_fill_viridis_c(name = "Count", option = "C") +
+  geom_point(aes(color = Diff), size = 0.6) +
+  scale_color_gradient2(
+    name     = "Rank Difference",
+    midpoint = 0,
+    low      = "#94cce0",
+    mid      = "#94cce0",
+    high     = "#092145"
+  ) +
+  geom_abline(slope = 1, intercept = 0, colour = "gray50", size = 0.8) +
+  coord_fixed() +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid  = element_line(colour = "grey90"),
+    legend.key  = element_blank(),
+    plot.title  = element_text(size = 14, face = "bold", hjust = 0.5)
+  ) +
+  labs(
+    title = "Men's Singles: BT vs PR5 (hex‐binned)",
+    x     = "Rank in PR5",
+    y     = "Rank in BT"
+  )
+
+# 4) ELO vs PR5
+plotMS4_hex <- ggplot(MS4, aes(x = PR5, y = ELO)) +
+  geom_hex(bins = 30, alpha = 0.6) +
+  scale_fill_viridis_c(name = "Count", option = "C") +
+  geom_point(aes(color = Diff), size = 0.6) +
+  scale_color_gradient2(
+    name     = "Rank Difference",
+    midpoint = 0,
+    low      = "#94cce0",
+    mid      = "#94cce0",
+    high     = "#092145"
+  ) +
+  geom_abline(slope = 1, intercept = 0, colour = "gray50", size = 0.8) +
+  coord_fixed() +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid  = element_line(colour = "grey90"),
+    legend.key  = element_blank(),
+    plot.title  = element_text(size = 14, face = "bold", hjust = 0.5)
+  ) +
+  labs(
+    title = "Men's Singles: ELO vs PR5 (hex‐binned)",
+    x     = "Rank in PR5",
+    y     = "Rank in ELO"
+  )
+
+# Combine into a 2×2 grid
+combinedMS_hex <- (plotMS1_hex | plotMS2_hex) / (plotMS3_hex | plotMS4_hex)
+
+ggsave(filename = "Scatterplot_hex_MS.png",combinedMS_hex,width = 14,height= 8,dpi= 300)
+ggsave(filename = "Hex_MS.png",plotMS1_hex,width = 14,height= 8,dpi= 300)
+combinedMS_hex
+```
+```{r Column}
+methodMSdf <- methodMS %>%pivot_longer(cols= starts_with("Method"),names_to="Method", values_to ="Accuracy")
+columnMS <- ggplot(methodMSdf, aes(Model, Accuracy, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_brewer(palette = "Set2", name = "Method") +
+  coord_cartesian(ylim = c(50, 70)) +
+  labs(title = "Men’s Singles: Predictive Accuracy by Methods", x  = "Model", y= "Accuracy (%)") +
+  my_theme +theme(legend.position = "top")
+methodWSdf <- methodWS %>%pivot_longer(cols= starts_with("Method"),names_to="Method", values_to ="Accuracy")
+columnWS <- ggplot(methodWSdf, aes(Model, Accuracy, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_brewer(palette = "Set2", name = "Method") +
+  coord_cartesian(ylim = c(50, 70)) +
+  labs(title = "Women’s Singles: Predictive Accuracy by Methods", x  = "Model", y= "Accuracy (%)") +
+  my_theme +theme(legend.position = "top")
+methodMDdf <- methodMD %>%pivot_longer(cols= starts_with("Method"),names_to="Method", values_to ="Accuracy")
+columnMD <- ggplot(methodMDdf, aes(Model, Accuracy, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_brewer(palette = "Set2", name = "Method") +
+  coord_cartesian(ylim = c(50, 70)) +
+  labs(title = "Men’s Doubles: Predictive Accuracy by Methods", x  = "Model", y= "Accuracy (%)") +
+  my_theme +theme(legend.position = "top")
+methodWDdf <- methodWD %>%pivot_longer(cols= starts_with("Method"),names_to="Method", values_to ="Accuracy")
+columnWD <- ggplot(methodWDdf, aes(Model, Accuracy, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_brewer(palette = "Set2", name = "Method") +
+  coord_cartesian(ylim = c(50, 70)) +
+  labs(title = "Women’s Doubles: Predictive Accuracy by Methods", x  = "Model", y= "Accuracy (%)") +
+  my_theme +theme(legend.position = "top")
+methodXDdf <- methodXD %>%pivot_longer(cols= starts_with("Method"),names_to="Method", values_to ="Accuracy")
+columnXD <- ggplot(methodXDdf, aes(Model, Accuracy, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_brewer(palette = "Set2", name = "Method") +
+  coord_cartesian(ylim = c(50, 70)) +
+  labs(title = "Mixed Doubles: Predictive Accuracy by Methods", x  = "Model", y= "Accuracy (%)") +
+  my_theme +theme(legend.position = "top")
+
+ggsave("MethodsMS.png",columnMS,width  = 14,height = 8,dpi= 300)
+columnMS
+ggsave("MethodsWS.png",columnWS,width  = 14,height = 8,dpi= 300)
+columnWS
+ggsave("MethodsMD.png",columnMD,width  = 14,height = 8,dpi= 300)
+columnMD
+ggsave("MethodsWD.png",columnWD,width  = 14,height = 8,dpi= 300)
+columnWD
+ggsave("MethodsXD.png",columnXD,width  = 14,height = 8,dpi= 300)
+columnXD
+```
+```{r Brier}
+BrierDF <- BrierScore %>%pivot_longer(cols      = -Model,
+                                      names_to  = "Method",
+                                      values_to = "BrierScore") %>%
+  mutate(Method = factor(Method,levels = c("MS","WS","MD","WD","XD")))
+BrierScorePlot <- ggplot(BrierDF, aes(x = Model, y = BrierScore, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_brewer(palette = "Dark2",name    = NULL,labels  = c("Men’s Singles", "Women’s Singles", "Men’s Doubles", "Women’s Doubles", "Mixed Doubles")) +coord_cartesian(
+    ylim = c(min(BrierDF$BrierScore)*0.95,
+             max(BrierDF$BrierScore)*1.05)) +
+  labs(title = "Brier Score by Model Across All Disciplines", x = "Model",y = "Brier Score",fill  = "") +
+  theme_minimal(base_size = 12) + theme(
+    plot.title       = element_text(face = "bold", size = 16, hjust = 0.5),
+    axis.text.x      = element_text(angle = 45, hjust = 1),
+    legend.position  = "top",
+    panel.grid.major = element_line(colour = "grey90"),
+    panel.grid.minor = element_blank(), )
+ggsave("BrierScore.png", plot = BrierScorePlot, width = 14, height = 8, dpi = 300)
+BrierScorePlot
+```
+```{r Information Score}
+infoscore<- ggplot(info, aes(x = Frequency, y = Information_Score, color = Discipline)) +
+  geom_smooth(method = "loess", 
+              span   = 0.3,      
+              se     = FALSE,   
+              size   = 1) +
+  scale_color_brewer(palette = "Set1") +
+  labs(title = "Information Score Curves by discipline",
+       x     = "Frequency",
+       y     = "Information Score",
+       color = "Discipline") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5)         
+  )
+ggsave("InformationScore.png", infoscore,width = 14, height = 8, dpi= 300)
+infoscore
+```
+```{r Network}
+PR1plot <- function(match_history,
+                name_list      = NULL,
+                alpha          = 0.85,
+                epsilon        = 1e-6,
+                max_iter       = 10000,
+                node_size_range= c(5, 15),
+                edge_width_range = c(0.5, 4),
+                edge_curve     = 0.2,
+                arrow_size     = 0.8,
+                arrow_width    = 0.6) {
+  library(dplyr)
+  library(igraph)
+  library(scales)
+  
+  players <- unique(c(match_history$Winner, match_history$Loser))
+  
+  edges <- match_history %>%
+    count(Winner, Loser, name = "weight")
+  
+  id_map <- setNames(seq_along(players), players)
+  edges <- edges %>%
+    mutate(
+      from = id_map[as.character(Winner)],
+      to   = id_map[as.character(Loser)]
+    )
+  
+  A <- matrix(0, 
+              nrow = length(players), 
+              ncol = length(players),
+              dimnames = list(players, players))
+  for(i in seq_len(nrow(edges))) {
+    A[ edges$from[i], edges$to[i] ] <- edges$weight[i]
+  }
+  
+  g <- graph_from_adjacency_matrix(A, mode = "directed", weighted = TRUE)
+  
+  pr_vals <- page_rank(g, directed = TRUE, damping = alpha)$vector
+  V(g)$size  <- rescale(pr_vals, to = node_size_range)
+  
+  if(!is.null(name_list)) {
+    name_map    <- setNames(name_list$PlayerName, name_list$PlayerID)
+    V(g)$label  <- name_map[V(g)$name]
+  } else {
+    V(g)$label  <- V(g)$name
+  }
+  
+  E(g)$width <- rescale(E(g)$weight, to = edge_width_range)
+  
+  graph<-plot(
+    g,
+    layout            = layout_with_fr(g),
+    vertex.color      = "steelblue",
+    vertex.frame.color= "white",
+    vertex.label.cex  = 0.7,
+    vertex.label.color= "black",
+    edge.color        = "grey80",
+    edge.curved       = edge_curve,
+    edge.arrow.size   = arrow_size,
+    edge.arrow.width  = arrow_width,
+    main              = "Player Network"
+  )
+return(graph)
+}
+PR5plot <- function(match_history,
+                latest_tournament,
+                name_list        = NULL,
+                alpha            = 0.85,
+                epsilon          = 1e-6,
+                max_iter         = 10000,
+                p                = 1,
+                time_scale       = 1,
+                node_size_range  = c(5, 15),
+                edge_width_range = c(0.5, 4),
+                edge_curve       = 0.2,
+                arrow_size       = 0.8,
+                arrow_width      = 0.6) {
+  library(dplyr)
+  library(igraph)
+  library(scales)
+  
+  players <- unique(c(match_history$Winner, match_history$Loser))
+  
+  calculate_adjustment <- function(data, p) {
+    data %>%
+      rowwise() %>%
+      mutate(
+        adj = mean(
+          c(
+            abs(Match1W^p - Match1L^p),
+            abs(Match2W^p - Match2L^p),
+            abs(Match3W^p - Match3L^p),
+            abs(Match4W^p - Match4L^p),
+            abs(Match5W^p - Match5L^p)
+          ),
+          na.rm = TRUE
+        )
+      ) %>%
+      ungroup()
+  }
+  
+  match_history <- match_history %>%
+    mutate(
+      Outcome = paste(Winner_Match_Won, Loser_Match_Won, sep = "-"),
+      match_weight = case_when(
+        Outcome %in% c("2-0", "3-0") ~ 1,
+        Outcome == "2-1"            ~ 1/2,
+        Outcome == "3-1"            ~ 2/3,
+        Outcome == "3-2"            ~ 1/3,
+        TRUE                        ~ 1
+      )
+    )
+  
+  edges <- match_history %>%
+    mutate(
+      time_factor = if_else(Tournament_ID %in% latest_tournament, time_scale, 1)
+    ) %>%
+    calculate_adjustment(p) %>%
+    mutate(
+      weight = adj * match_weight * level_weight * round_weight * time_factor
+    ) %>%
+    group_by(Winner, Loser) %>%
+    summarise(weight = sum(weight, na.rm = TRUE), .groups = "drop") %>%
+    ungroup()
+  
+  id_map <- setNames(seq_along(players), players)
+  edges <- edges %>%
+    mutate(
+      from = id_map[as.character(Winner)],
+      to   = id_map[as.character(Loser)]
+    )
+  
+  A <- matrix(0, 
+              nrow = length(players), 
+              ncol = length(players),
+              dimnames = list(players, players))
+  for(i in seq_len(nrow(edges))) {
+    A[ edges$from[i], edges$to[i] ] <- edges$weight[i]
+  }
+  
+  g <- graph_from_adjacency_matrix(A, mode = "directed", weighted = TRUE)
+  
+  pr_vals <- page_rank(g, directed = TRUE, damping = alpha)$vector
+  V(g)$size  <- rescale(pr_vals, to = node_size_range)
+  
+  if(!is.null(name_list)) {
+    name_map    <- setNames(name_list$PlayerName, name_list$PlayerID)
+    V(g)$label  <- name_map[V(g)$name]
+  } else {
+    V(g)$label  <- V(g)$name
+  }
+  
+  E(g)$width <- rescale(E(g)$weight, to = edge_width_range)
+  
+  graph<-plot(
+    g,
+    layout            = layout_with_fr(g),
+    vertex.color      = "steelblue",
+    vertex.frame.color= "white",
+    vertex.label.cex  = 0.7,
+    vertex.label.color= "black",
+    edge.color        = "grey80",
+    edge.curved       = edge_curve,
+    edge.arrow.size   = arrow_size,
+    edge.arrow.width  = arrow_width,
+    main              = "Player Network"
+  )
+  return(graph)
+}
+png(
+  filename = "Network1.png",
+  width    = 14,
+  height   = 8,
+  units    = "in",
+  res      = 300
+)
+PRplot1(BARU, name_list = nama)
+dev.off()
+png(
+  filename = "Network2.png",
+  width    = 14,
+  height   = 8,
+  units    = "in",
+  res      = 300
+)
+PRplot5(BARU, latesttourID, name_list = nama)
+dev.off()
+png(
+  filename = "Network3.png",
+  width    = 14,
+  height   = 8,
+  units    = "in",
+  res      = 300
+)
+PRplot1(MS_selected_between, name_list = nama)
+dev.off()
+png(
+  filename = "Network4.png",
+  width    = 14,
+  height   = 8,
+  units    = "in",
+  res      = 300
+)
+PRplot5(MS_selected_between, latesttourID, name_list = nama)
+dev.off()
+```
