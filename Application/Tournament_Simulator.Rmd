@@ -1,0 +1,161 @@
+---
+title: "Tournament Decider"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+AE<- read.csv("Tournament_AllEngland_PR5.csv")
+ORLEANS<- read.csv("Tournament_OrleansMasters_PR5.csv")
+set.seed(123)  
+```
+```{r Match simulation}
+# Function to simulate a match between two players 
+simulate_match <- function(playerA, playerB, players, iterations = 1000) {
+  prA <- players$PR[players$number == playerA]
+  prB <- players$PR[players$number == playerB]
+  pA <- prA / (prA + prB)
+  outcomes <- runif(iterations) < pA  
+  winsA <- sum(outcomes)
+  winsB <- iterations - winsA
+  
+  # Decide winner 
+  if (winsA > winsB) {
+    return(list(winner = playerA, win_count = winsA))
+  } else if (winsB > winsA) {
+    return(list(winner = playerB, win_count = winsB))
+  } else {
+    # If tie
+    chosen <- sample(c(playerA, playerB), 1)
+    win_count <- ifelse(chosen == playerA, winsA, winsB)
+    return(list(winner = chosen, win_count = win_count))
+  }
+}
+```
+```{r Tour simulation}
+simulate_tournament_for_reference <- function(players, ref, iterations = 1000) {
+  seeded_players <- 1:8          
+  non_seeded_players <- 9:32
+  seeded_positions <- c(1, 8, 9, 16, 17, 24, 25, 32)
+  bracket <- rep(NA, 32)
+  bracket[seeded_positions] <- seeded_players
+  remaining_positions <- setdiff(1:32, seeded_positions)
+  bracket[remaining_positions] <- sample(non_seeded_players)
+  
+  results <- list(R32_winner = NA, R32_win_count = NA,
+                  R16_winner = NA, R16_win_count = NA,
+                  QF_winner = NA, QF_win_count = NA,
+                  SF_winner = NA, SF_win_count = NA,
+                  F_winner  = NA, F_win_count  = NA,
+                  final_round = NA)
+  #R32
+  R32_matches <- split(bracket, ceiling(seq_along(bracket) / 2))
+  R32_winners <- vector("numeric", length = 16)
+  for (i in seq_along(R32_matches)) {
+    match_players <- R32_matches[[i]]
+    match_result <- simulate_match(match_players[1], match_players[2], players, iterations)
+    R32_winners[i] <- match_result$winner
+    if (ref %in% match_players) {
+      results$R32_winner <- match_result$winner
+      results$R32_win_count <- match_result$win_count
+    }
+  }
+  # Stop loop if reference player not in bracket
+  if (!(ref %in% R32_winners)) {
+    results$final_round <- "R32"
+    return(results)
+  }
+  
+  #R16
+  R16_matches <- split(R32_winners, ceiling(seq_along(R32_winners) / 2))
+  R16_winners <- vector("numeric", length = 8)
+  for (i in seq_along(R16_matches)) {
+    match_players <- R16_matches[[i]]
+    match_result <- simulate_match(match_players[1], match_players[2], players, iterations)
+    R16_winners[i] <- match_result$winner
+    if (ref %in% match_players) {
+      results$R16_winner <- match_result$winner
+      results$R16_win_count <- match_result$win_count
+    }
+  }
+  if (!(ref %in% R16_winners)) {
+    results$final_round <- "R16"
+    return(results)
+  }
+  
+  #QF
+  QF_matches <- split(R16_winners, ceiling(seq_along(R16_winners) / 2))
+  QF_winners <- vector("numeric", length = 4)
+  for (i in seq_along(QF_matches)) {
+    match_players <- QF_matches[[i]]
+    match_result <- simulate_match(match_players[1], match_players[2], players, iterations)
+    QF_winners[i] <- match_result$winner
+    if (ref %in% match_players) {
+      results$QF_winner <- match_result$winner
+      results$QF_win_count <- match_result$win_count
+    }
+  }
+  if (!(ref %in% QF_winners)) {
+    results$final_round <- "QF"
+    return(results)
+  }
+  
+  #SF
+  SF_matches <- split(QF_winners, ceiling(seq_along(QF_winners) / 2))
+  SF_winners <- vector("numeric", length = 2)
+  for (i in seq_along(SF_matches)) {
+    match_players <- SF_matches[[i]]
+    match_result <- simulate_match(match_players[1], match_players[2], players, iterations)
+    SF_winners[i] <- match_result$winner
+    if (ref %in% match_players) {
+      results$SF_winner <- match_result$winner
+      results$SF_win_count <- match_result$win_count
+    }
+  }
+  if (!(ref %in% SF_winners)) {
+    results$final_round <- "SF"
+    return(results)
+  }
+  
+  #F
+  final_match <- SF_winners  
+  final_result <- simulate_match(final_match[1], final_match[2], players, iterations)
+  results$F_winner  <- final_result$winner
+  results$F_win_count <- final_result$win_count
+  if (ref != final_result$winner) {
+    results$final_round <- "F"
+  } else {
+    results$final_round <- "Champion" # if reference player wins
+  }
+  return(results)
+}
+```
+```{r Multiple tour draws}
+simulate_tournaments <- function(players, ref, num_simulations = 1000, iterations = 1000) {
+  simulation_results <- vector("list", num_simulations)
+  
+  for (sim in 1:num_simulations) {
+    simulation_results[[sim]] <- simulate_tournament_for_reference(players, ref, iterations)
+  }
+  
+  df <- do.call(rbind, lapply(simulation_results, as.data.frame))
+  df$sim_id <- 1:num_simulations
+  df <- df[, c("sim_id", setdiff(names(df), "sim_id"))]
+  
+  return(df)
+}
+```
+```{r run}
+AE_TAKUMA <- simulate_tournaments(AE, ref = 29, num_simulations = 1000, iterations = 1000)
+AE_ZHAO <- simulate_tournaments(AE, ref = 32, num_simulations = 1000, iterations = 1000)
+AE_YUSHI <- simulate_tournaments(AE, ref = 31, num_simulations = 1000, iterations = 1000)
+ORLEANS_TAKUMA <- simulate_tournaments(ORLEANS, ref = 1, num_simulations = 1000, iterations = 1000)
+ORLEANS_ZHAO <- simulate_tournaments(ORLEANS, ref = 2, num_simulations = 1000, iterations = 1000)
+ORLEANS_YUSHI <- simulate_tournaments(ORLEANS, ref = 18, num_simulations = 1000, iterations = 1000)
+####
+table(AE_TAKUMA$final_round)
+table(AE_ZHAO$final_round)
+table(AE_YUSHI$final_round)
+table(ORLEANS_TAKUMA$final_round)
+table(ORLEANS_ZHAO$final_round)
+table(ORLEANS_YUSHI$final_round)
+```
